@@ -1,0 +1,544 @@
+{
+  "id": "dataspace",
+  "realm": "dataspace",
+  "displayName": "Federated Data Space",
+  "displayNameHtml": "<strong>Federated Data Space</strong>",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "offlineSessionIdleTimeout": 2592000,
+  "accessCodeLifespan": 60,
+  "accessCodeLifespanUserAction": 300,
+  "roles": {
+    "realm": [
+      {
+        "name": "dso-operator",
+        "description": "Distribution System Operator with full grid data access and emergency override capability",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "aggregator-operator",
+        "description": "DER Aggregator operator managing flexibility envelopes and dispatch responses",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "prosumer-owner",
+        "description": "Campus prosumer managing consent-gated demand profiles and meter data",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "researcher",
+        "description": "Research role with access to anonymized and aggregated data only",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "admin",
+        "description": "Administrative role with full system access including audit logs",
+        "composite": false,
+        "clientRole": false
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "dso-node",
+      "name": "DSO Participant Node",
+      "description": "Distribution System Operator participant node - publishes feeder constraints, congestion signals, and hosting capacity data",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "dso-dev-secret",
+      "redirectUris": [
+        "https://localhost:8001/*"
+      ],
+      "webOrigins": [
+        "https://localhost:8001"
+      ],
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "fullScopeAllowed": true,
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email",
+        "dataspace-scope"
+      ],
+      "protocolMappers": [
+        {
+          "name": "participant-id-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "participant_id",
+            "claim.value": "dso-001",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "participant-type-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "participant_type",
+            "claim.value": "dso",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "realm-roles-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "claim.name": "roles",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "audience-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "dso-node",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "aggregator-node",
+      "name": "Aggregator Participant Node",
+      "description": "DER Aggregator participant node - publishes aggregate flexibility envelopes and responds to dispatch commands",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "aggregator-dev-secret",
+      "redirectUris": [
+        "https://localhost:8002/*"
+      ],
+      "webOrigins": [
+        "https://localhost:8002"
+      ],
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "fullScopeAllowed": true,
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email",
+        "dataspace-scope"
+      ],
+      "protocolMappers": [
+        {
+          "name": "participant-id-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "participant_id",
+            "claim.value": "aggregator-001",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "participant-type-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "participant_type",
+            "claim.value": "aggregator",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "realm-roles-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "claim.name": "roles",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "audience-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "aggregator-node",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "prosumer-node",
+      "name": "Prosumer Participant Node",
+      "description": "Campus prosumer participant node - manages consent-gated anonymized demand profiles",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "prosumer-dev-secret",
+      "redirectUris": [
+        "https://localhost:8003/*"
+      ],
+      "webOrigins": [
+        "https://localhost:8003"
+      ],
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "fullScopeAllowed": true,
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email",
+        "dataspace-scope"
+      ],
+      "protocolMappers": [
+        {
+          "name": "participant-id-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "participant_id",
+            "claim.value": "prosumer-001",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "participant-type-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "participant_type",
+            "claim.value": "prosumer",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "realm-roles-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "claim.name": "roles",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "audience-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "prosumer-node",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "catalog-service",
+      "name": "Federated Catalog Service",
+      "description": "Federated discovery catalog for data asset registration and search",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "catalog-dev-secret",
+      "redirectUris": [
+        "http://localhost:8000/*"
+      ],
+      "webOrigins": [
+        "http://localhost:8000"
+      ],
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "fullScopeAllowed": true,
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email",
+        "dataspace-scope"
+      ],
+      "protocolMappers": [
+        {
+          "name": "participant-id-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "participant_id",
+            "claim.value": "catalog-001",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "participant-type-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "participant_type",
+            "claim.value": "catalog",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "realm-roles-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "claim.name": "roles",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "audience-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "catalog-service",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "clientScopes": [
+    {
+      "name": "dataspace-scope",
+      "description": "Custom scope for federated data space participants",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true",
+        "consent.screen.text": "Access to federated data space resources"
+      },
+      "protocolMappers": [
+        {
+          "name": "dataspace-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "dataspace",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "dso-admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "DSO",
+      "lastName": "Administrator",
+      "email": "dso-admin@dataspace.local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "dso-dev-password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "dso-operator",
+        "admin"
+      ],
+      "clientRoles": {}
+    },
+    {
+      "username": "aggregator-admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Aggregator",
+      "lastName": "Administrator",
+      "email": "aggregator-admin@dataspace.local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "aggregator-dev-password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "aggregator-operator"
+      ],
+      "clientRoles": {}
+    },
+    {
+      "username": "prosumer-admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Prosumer",
+      "lastName": "Administrator",
+      "email": "prosumer-admin@dataspace.local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "prosumer-dev-password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "prosumer-owner"
+      ],
+      "clientRoles": {}
+    },
+    {
+      "username": "researcher",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Research",
+      "lastName": "User",
+      "email": "researcher@dataspace.local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "researcher-dev-password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "researcher"
+      ],
+      "clientRoles": {}
+    }
+  ],
+  "scopeMappings": [
+    {
+      "client": "dso-node",
+      "roles": [
+        "dso-operator"
+      ]
+    },
+    {
+      "client": "aggregator-node",
+      "roles": [
+        "aggregator-operator"
+      ]
+    },
+    {
+      "client": "prosumer-node",
+      "roles": [
+        "prosumer-owner"
+      ]
+    },
+    {
+      "client": "catalog-service",
+      "roles": [
+        "admin"
+      ]
+    }
+  ],
+  "defaultDefaultClientScopes": [
+    "web-origins",
+    "acr",
+    "profile",
+    "roles",
+    "email"
+  ],
+  "smtpServer": {},
+  "eventsEnabled": true,
+  "eventsListeners": [
+    "jboss-logging"
+  ],
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": true
+}
