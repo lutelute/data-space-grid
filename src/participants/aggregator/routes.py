@@ -25,6 +25,8 @@ Routes:
 
   **Dispatch response**
     ``POST /api/v1/dispatch-response``   -- report dispatch actuals to DSO.
+        Also publishes a ``DispatchActual`` to the ``dispatch-actuals``
+        Kafka topic via the event bus.
 
   **Audit**
     ``GET  /api/v1/audit``               -- query audit log (admin only).
@@ -32,8 +34,11 @@ Routes:
 Key design decisions:
   - The router delegates all persistence to
     :class:`~src.participants.aggregator.store.AggregatorStore`.
-  - The ``create_router()`` factory accepts an optional store and audit
-    logger so that tests can inject custom instances.
+  - The ``create_router()`` factory accepts an optional store, audit
+    logger, and event bus so that tests can inject custom instances.
+  - When an ``EventBus`` is provided, the dispatch-response endpoint
+    publishes a ``DispatchActual`` to the ``dispatch-actuals`` topic
+    so that the DSO receives aggregator performance data.
   - Query parameters for flexibility offers and availability windows use
     ``feeder_id`` and ``envelope_id`` for consistent filtering across
     endpoints.
@@ -56,6 +61,7 @@ from pydantic import BaseModel, Field
 from starlette.responses import JSONResponse
 
 from src.connector.audit import AuditLogger
+from src.connector.events import EventBus, EventBusError, Topic
 from src.connector.models import AuditAction, AuditEntry, AuditOutcome
 from src.participants.aggregator.flexibility import (
     compute_aggregate_flexibility,
@@ -202,6 +208,7 @@ _default_store = AggregatorStore()
 def create_router(
     store: Optional[AggregatorStore] = None,
     audit_logger: Optional[AuditLogger] = None,
+    event_bus: Optional[EventBus] = None,
 ) -> APIRouter:
     """Create the Aggregator API router with the given data store and audit logger.
 
@@ -210,12 +217,15 @@ def create_router(
             module-level default store (SQLite file-backed) is used.
         audit_logger: The audit logger for the ``/api/v1/audit`` endpoint.
             When ``None``, the audit endpoint returns an empty list.
+        event_bus: The event bus for publishing dispatch actuals to Kafka.
+            When ``None``, events are not published (HTTP-only mode).
 
     Returns:
         A :class:`~fastapi.APIRouter` with all Aggregator endpoints registered.
     """
     agg_store = store or _default_store
     _audit = audit_logger
+    _event_bus = event_bus
 
     router = APIRouter()
 
@@ -349,6 +359,10 @@ def create_router(
         The Aggregator submits this after executing a dispatch command.
         Reports what was actually delivered versus what was commanded,
         enabling settlement and performance tracking.
+
+        When an event bus is configured, the ``DispatchActual`` is also
+        published to the ``dispatch-actuals`` Kafka topic so that the DSO
+        can receive the response asynchronously.
         """
         actual = DispatchActual(
             actual_id=f"DA-AGG-{uuid.uuid4().hex[:8]}",
@@ -374,6 +388,26 @@ def create_router(
             actual.command_id,
             actual.delivered_kw,
         )
+
+        # Publish the DispatchActual to the event bus so that the DSO
+        # receives the aggregator's response asynchronously.
+        if _event_bus is not None:
+            try:
+                _event_bus.produce(
+                    Topic.DISPATCH_ACTUALS, actual, key=body.feeder_id
+                )
+                logger.info(
+                    "DispatchActual published: actual_id=%s feeder=%s",
+                    actual.actual_id,
+                    actual.feeder_id,
+                )
+            except EventBusError as exc:
+                logger.warning(
+                    "Failed to publish DispatchActual %s: %s",
+                    actual.actual_id,
+                    exc,
+                )
+
         return actual
 
     # -- Audit routes --------------------------------------------------------

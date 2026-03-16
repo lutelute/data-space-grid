@@ -25,6 +25,8 @@ Routes:
 
   **Flexibility requests**
     ``POST /api/v1/flexibility-requests``     -- publish a flexibility need.
+        Also publishes a ``DispatchCommand`` to the ``dispatch-commands``
+        Kafka topic via the event bus.
 
   **Audit**
     ``GET  /api/v1/audit``                    -- query audit log (admin only).
@@ -35,8 +37,11 @@ Key design decisions:
   - Flexibility requests are stored in-memory within the router closure;
     the DSOStore focuses on grid operational data (constraints, signals,
     capacity).
-  - The ``create_router()`` factory accepts an optional store and audit
-    logger so that tests can inject custom instances.
+  - The ``create_router()`` factory accepts an optional store, audit
+    logger, and event bus so that tests can inject custom instances.
+  - When an ``EventBus`` is provided, the flexibility-requests endpoint
+    publishes a ``DispatchCommand`` to the ``dispatch-commands`` topic
+    so that subscribed aggregators receive dispatch instructions.
   - Query parameters for congestion signals and hosting capacity use
     ``feeder_id`` for consistent filtering across endpoints.
   - All error responses use ``{"detail": ...}`` format consistent with
@@ -55,6 +60,7 @@ from pydantic import BaseModel, Field
 from starlette.responses import JSONResponse
 
 from src.connector.audit import AuditLogger
+from src.connector.events import EventBus, EventBusError, Topic
 from src.connector.models import AuditAction, AuditEntry, AuditOutcome
 from src.participants.dso.store import DSOStore
 from src.semantic.cim import (
@@ -63,6 +69,7 @@ from src.semantic.cim import (
     HostingCapacity,
     SensitivityTier,
 )
+from src.semantic.openadr import DispatchCommand
 
 logger = logging.getLogger(__name__)
 
@@ -163,6 +170,7 @@ _default_store = DSOStore()
 def create_router(
     store: Optional[DSOStore] = None,
     audit_logger: Optional[AuditLogger] = None,
+    event_bus: Optional[EventBus] = None,
 ) -> APIRouter:
     """Create the DSO API router with the given data store and audit logger.
 
@@ -171,12 +179,15 @@ def create_router(
             default store (SQLite file-backed) is used.
         audit_logger: The audit logger for the ``/api/v1/audit`` endpoint.
             When ``None``, the audit endpoint returns an empty list.
+        event_bus: The event bus for publishing dispatch commands to Kafka.
+            When ``None``, events are not published (HTTP-only mode).
 
     Returns:
         A :class:`~fastapi.APIRouter` with all DSO endpoints registered.
     """
     dso_store = store or _default_store
     _audit = audit_logger
+    _event_bus = event_bus
 
     # In-memory storage for flexibility requests.  In production these
     # would be persisted to the database; for the prototype, in-memory
@@ -291,9 +302,17 @@ def create_router(
         The DSO creates a flexibility request when it needs aggregators
         to provide demand response or generation adjustment on a feeder
         (e.g., to manage congestion or voltage issues).
+
+        When an event bus is configured, a corresponding
+        :class:`~src.semantic.openadr.DispatchCommand` is published to the
+        ``dispatch-commands`` Kafka topic so that subscribed aggregators
+        can act on the request.
         """
+        now = _utc_now()
+        request_id = str(uuid.uuid4())
+
         flex_request = FlexibilityRequestResponse(
-            request_id=str(uuid.uuid4()),
+            request_id=request_id,
             feeder_id=body.feeder_id,
             requested_power_kw=body.requested_power_kw,
             direction=body.direction,
@@ -302,7 +321,7 @@ def create_router(
             priority=body.priority,
             reason=body.reason,
             sensitivity=SensitivityTier.MEDIUM,
-            created_at=_utc_now(),
+            created_at=now,
         )
         _flexibility_requests.append(flex_request)
         logger.info(
@@ -311,6 +330,43 @@ def create_router(
             flex_request.feeder_id,
             flex_request.requested_power_kw,
         )
+
+        # Publish a DispatchCommand to the event bus so that subscribed
+        # aggregators receive the dispatch instruction.
+        if _event_bus is not None:
+            duration = (
+                body.needed_until - body.needed_from
+            ).total_seconds() / 60.0
+            command = DispatchCommand(
+                command_id=f"DC-DSO-{uuid.uuid4().hex[:8]}",
+                event_id=request_id,
+                issuer_id="dso-001",
+                target_participant_id="aggregator-001",
+                contract_id="flex-contract-001",
+                feeder_id=body.feeder_id,
+                target_power_kw=body.requested_power_kw,
+                activation_time=body.needed_from,
+                duration_minutes=max(duration, 0.0),
+                is_emergency=(body.priority >= 3),
+                issued_at=now,
+                sensitivity=SensitivityTier.MEDIUM,
+            )
+            try:
+                _event_bus.produce(
+                    Topic.DISPATCH_COMMANDS, command, key=body.feeder_id
+                )
+                logger.info(
+                    "DispatchCommand published: command_id=%s feeder=%s",
+                    command.command_id,
+                    command.feeder_id,
+                )
+            except EventBusError as exc:
+                logger.warning(
+                    "Failed to publish DispatchCommand for request %s: %s",
+                    request_id,
+                    exc,
+                )
+
         return flex_request
 
     # -- Audit routes --------------------------------------------------------
