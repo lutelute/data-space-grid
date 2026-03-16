@@ -1,0 +1,273 @@
+# docker-compose.yml
+#
+# Full stack orchestration for the Federated Data Space prototype.
+#
+# Services:
+#   keycloak         - OIDC identity provider (port 8080)
+#   kafka            - Event bus in KRaft mode, no Zookeeper (port 9092)
+#   catalog-service  - Federated discovery catalog (port 8000)
+#   dso-node         - Distribution System Operator participant (port 8001)
+#   aggregator-node  - DER Aggregator participant (port 8002)
+#   prosumer-node    - Campus Prosumer participant (port 8003)
+#
+# Usage:
+#   docker compose up -d              # Start all services
+#   docker compose up -d keycloak kafka  # Start infrastructure only
+#   docker compose logs -f catalog-service  # Follow catalog logs
+
+services:
+  # ── Identity Layer: Keycloak 26.x ────────────────────────────────────────
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: dataspace-keycloak
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HEALTH_ENABLED: "true"
+      KC_HTTP_PORT: "8080"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./infrastructure/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+      - keycloak-data:/opt/keycloak/data
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+  # ── Event Bus: Kafka in KRaft Mode (no Zookeeper) ───────────────────────
+  kafka:
+    image: apache/kafka:3.8.0
+    container_name: dataspace-kafka
+    environment:
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+  # ── Federated Catalog Service (port 8000) ────────────────────────────────
+  catalog-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dataspace-catalog
+    command: >
+      uvicorn src.catalog.main:app
+      --host 0.0.0.0
+      --port 8000
+    environment:
+      KEYCLOAK_SERVER_URL: http://keycloak:8080
+      KEYCLOAK_REALM: dataspace
+      KEYCLOAK_CLIENT_ID: catalog-service
+      KEYCLOAK_CLIENT_SECRET: catalog-dev-secret
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      CATALOG_URL: http://catalog-service:8000
+      DATABASE_URL: sqlite:///data/catalog.db
+      AUDIT_LOG_PATH: /app/audit/catalog.log
+      PARTICIPANT_ID: catalog-001
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./infrastructure/certs:/app/certs:ro
+      - catalog-data:/app/data
+      - catalog-audit:/app/audit
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # ── DSO Participant Node (port 8001) ─────────────────────────────────────
+  dso-node:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dataspace-dso
+    command: >
+      uvicorn src.participants.dso.main:app
+      --host 0.0.0.0
+      --port 8001
+      --ssl-keyfile /app/certs/dso.key
+      --ssl-certfile /app/certs/dso.crt
+      --ssl-ca-certs /app/certs/ca.crt
+    environment:
+      KEYCLOAK_SERVER_URL: http://keycloak:8080
+      KEYCLOAK_REALM: dataspace
+      KEYCLOAK_CLIENT_ID: dso-node
+      KEYCLOAK_CLIENT_SECRET: dso-dev-secret
+      SSL_KEYFILE: /app/certs/dso.key
+      SSL_CERTFILE: /app/certs/dso.crt
+      SSL_CA_CERTS: /app/certs/ca.crt
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      CATALOG_URL: http://catalog-service:8000
+      DATABASE_URL: sqlite:///data/dso.db
+      AUDIT_LOG_PATH: /app/audit/dso.log
+      PARTICIPANT_ID: dso-001
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./infrastructure/certs:/app/certs:ro
+      - dso-data:/app/data
+      - dso-audit:/app/audit
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      catalog-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request, ssl; ctx=ssl.create_default_context(); ctx.check_hostname=False; ctx.verify_mode=ssl.CERT_NONE; urllib.request.urlopen('https://localhost:8001/health', context=ctx)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # ── Aggregator Participant Node (port 8002) ──────────────────────────────
+  aggregator-node:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dataspace-aggregator
+    command: >
+      uvicorn src.participants.aggregator.main:app
+      --host 0.0.0.0
+      --port 8002
+      --ssl-keyfile /app/certs/aggregator.key
+      --ssl-certfile /app/certs/aggregator.crt
+      --ssl-ca-certs /app/certs/ca.crt
+    environment:
+      KEYCLOAK_SERVER_URL: http://keycloak:8080
+      KEYCLOAK_REALM: dataspace
+      KEYCLOAK_CLIENT_ID: aggregator-node
+      KEYCLOAK_CLIENT_SECRET: aggregator-dev-secret
+      SSL_KEYFILE: /app/certs/aggregator.key
+      SSL_CERTFILE: /app/certs/aggregator.crt
+      SSL_CA_CERTS: /app/certs/ca.crt
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      CATALOG_URL: http://catalog-service:8000
+      DATABASE_URL: sqlite:///data/aggregator.db
+      AUDIT_LOG_PATH: /app/audit/aggregator.log
+      PARTICIPANT_ID: aggregator-001
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./infrastructure/certs:/app/certs:ro
+      - aggregator-data:/app/data
+      - aggregator-audit:/app/audit
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      catalog-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request, ssl; ctx=ssl.create_default_context(); ctx.check_hostname=False; ctx.verify_mode=ssl.CERT_NONE; urllib.request.urlopen('https://localhost:8002/health', context=ctx)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # ── Prosumer Participant Node (port 8003) ────────────────────────────────
+  prosumer-node:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dataspace-prosumer
+    command: >
+      uvicorn src.participants.prosumer.main:app
+      --host 0.0.0.0
+      --port 8003
+      --ssl-keyfile /app/certs/prosumer.key
+      --ssl-certfile /app/certs/prosumer.crt
+      --ssl-ca-certs /app/certs/ca.crt
+    environment:
+      KEYCLOAK_SERVER_URL: http://keycloak:8080
+      KEYCLOAK_REALM: dataspace
+      KEYCLOAK_CLIENT_ID: prosumer-node
+      KEYCLOAK_CLIENT_SECRET: prosumer-dev-secret
+      SSL_KEYFILE: /app/certs/prosumer.key
+      SSL_CERTFILE: /app/certs/prosumer.crt
+      SSL_CA_CERTS: /app/certs/ca.crt
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      CATALOG_URL: http://catalog-service:8000
+      DATABASE_URL: sqlite:///data/prosumer.db
+      AUDIT_LOG_PATH: /app/audit/prosumer.log
+      PARTICIPANT_ID: prosumer-001
+    ports:
+      - "8003:8003"
+    volumes:
+      - ./infrastructure/certs:/app/certs:ro
+      - prosumer-data:/app/data
+      - prosumer-audit:/app/audit
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      catalog-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request, ssl; ctx=ssl.create_default_context(); ctx.check_hostname=False; ctx.verify_mode=ssl.CERT_NONE; urllib.request.urlopen('https://localhost:8003/health', context=ctx)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  keycloak-data:
+    driver: local
+  kafka-data:
+    driver: local
+  catalog-data:
+    driver: local
+  catalog-audit:
+    driver: local
+  dso-data:
+    driver: local
+  dso-audit:
+    driver: local
+  aggregator-data:
+    driver: local
+  aggregator-audit:
+    driver: local
+  prosumer-data:
+    driver: local
+  prosumer-audit:
+    driver: local
