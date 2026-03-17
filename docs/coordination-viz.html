@@ -1,0 +1,1229 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>OLTC・SVR・DR 協調制御 — Data Space Grid</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#060610;color:#c8cce8;font-family:'Helvetica Neue','Hiragino Kaku Gothic ProN',sans-serif;overflow:hidden}
+canvas{display:block}
+
+#ui{position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:10}
+#top{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 16px}
+#top-left h1{font-size:.95rem;color:#00c8ff;margin-bottom:1px}
+#top-left .sub{font-size:.62rem;color:#555580}
+#top-right{text-align:right}
+#top-right .clock{font-size:1.8rem;font-weight:800;color:#f9e2af;font-family:'SF Mono','Menlo',monospace}
+#top-right .date{font-size:.65rem;color:#555580}
+
+/* Panels */
+.panel{background:rgba(10,10,24,.93);border:1px solid #1e1e40;border-radius:8px;padding:8px 10px;font-size:.75rem}
+.panel h4{font-size:.6rem;color:#555580;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px}
+.panel .row{display:flex;justify-content:space-between;padding:1px 0}
+.panel .big{font-size:1.1rem;font-weight:800;line-height:1.2}
+.panel .bar{height:4px;background:#1a1a30;border-radius:3px;margin-top:2px;overflow:hidden}
+.panel .bar-fill{height:100%;border-radius:3px;transition:width .3s}
+
+/* OLTC panel */
+#oltc-panel{position:fixed;top:52px;left:12px;width:200px}
+#svr-panel{position:fixed;top:200px;left:12px;width:200px}
+#dr-panel{position:fixed;top:340px;left:12px;width:200px}
+
+/* House detail panel */
+#house-panel{position:fixed;top:52px;right:12px;width:280px;max-height:calc(100vh - 120px);overflow-y:auto;pointer-events:auto}
+#house-panel::-webkit-scrollbar{width:3px}
+#house-panel::-webkit-scrollbar-thumb{background:#333}
+
+/* Data Space flow */
+#ds-panel{position:fixed;bottom:8px;right:12px;width:280px}
+.ds-step{padding:3px 6px;margin:2px 0;border-radius:4px;font-size:.68rem;border-left:3px solid transparent;opacity:.4;transition:all .3s}
+.ds-step.active{opacity:1;background:rgba(255,255,255,.03)}
+.ds-step.done{opacity:.7}
+
+/* Coordination timeline */
+#timeline{position:fixed;bottom:8px;left:12px;right:300px;height:80px}
+
+/* Start */
+#start{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:rgba(6,6,16,.97)}
+#start .inner{text-align:center;max-width:700px;padding:20px}
+#start h2{font-size:1.5rem;color:#00c8ff;margin-bottom:8px}
+#start p{color:#555580;font-size:.85rem;line-height:1.7;margin-bottom:14px}
+#start .specs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:18px}
+#start .spec{background:#10102a;border:1px solid #1e1e40;border-radius:8px;padding:8px;text-align:center}
+#start .spec .v{font-size:1.1rem;font-weight:800;color:#00c8ff}
+#start .spec .l{font-size:.65rem;color:#555580;margin-top:2px}
+#start button{background:#00c8ff;color:#060610;border:none;padding:10px 32px;border-radius:8px;font-size:.95rem;font-weight:700;cursor:pointer;pointer-events:auto}
+.hidden{display:none!important}
+
+/* Device cards in house panel */
+.dev-card{background:#0a0a1a;border:1px solid #1e1e40;border-radius:6px;padding:6px 8px;margin:4px 0}
+.dev-card .dev-name{font-size:.7rem;font-weight:700;margin-bottom:2px}
+.dev-card .dev-bar{height:6px;background:#1a1a30;border-radius:3px;overflow:hidden;margin:3px 0}
+.dev-card .dev-fill{height:100%;border-radius:3px;transition:width .4s}
+.dev-card .dev-stat{font-size:.62rem;color:#555580}
+.dev-card.active{border-color:#51cf66}
+.dev-card.dr-active{border-color:#fcc419;background:#0f0f1a}
+</style>
+</head>
+<body>
+
+<div id="start">
+  <div class="inner">
+    <div style="font-size:.7rem;color:#00c8ff;letter-spacing:3px;margin-bottom:6px">VOLTAGE COORDINATION VIA DATA SPACE</div>
+    <h2>OLTC・SVR・DR 協調制御デモ</h2>
+    <p>変電所OLTC、線路SVR、需要家DRの3層電圧制御を<br>
+    <strong style="color:#00c8ff">フェデレーテッド・データスペース</strong>を介して協調させる。<br>
+    各制御器がデータスペース上の契約に基づいて情報交換し、<br>
+    ローカル最適と全体最適を両立する。</p>
+    <div class="specs">
+      <div class="spec"><div class="v">OLTC</div><div class="l">変電所タップ<br>1.00〜1.05pu</div></div>
+      <div class="spec"><div class="v">SVR</div><div class="l">線路電圧調整<br>±5% 補償</div></div>
+      <div class="spec"><div class="v">DR</div><div class="l">需要家制御<br>EV/蓄電池/AC</div></div>
+      <div class="spec"><div class="v">Data Space</div><div class="l">契約ベース<br>情報交換</div></div>
+    </div>
+    <div style="background:#10102a;border:1px solid #1e1e40;border-radius:8px;padding:12px 16px;text-align:left;margin-bottom:16px">
+      <div style="font-size:.75rem;color:#fcc419;font-weight:700;margin-bottom:4px">協調の課題</div>
+      <div style="font-size:.78rem;color:#888;line-height:1.6">
+        OLTCが単独でタップを上げると → 軽負荷端の電圧が上限超過<br>
+        SVRが単独で補償すると → OLTCと干渉してハンチング<br>
+        DRが単独で削減すると → 過剰削減で快適性低下<br>
+        <strong style="color:#00c8ff">→ データスペースで相互の状態を共有し、デッドバンド・時限を協調</strong>
+      </div>
+    </div>
+    <button onclick="go()">シミュレーション開始</button>
+  </div>
+</div>
+
+<div id="ui" class="hidden">
+  <div id="top">
+    <div id="top-left">
+      <h1>OLTC・SVR・DR 協調制御</h1>
+      <div class="sub">Data Space経由の3層電圧協調 — 1,000軒配電系統</div>
+    </div>
+    <div id="top-right">
+      <div class="clock" id="clk">00:00</div>
+      <div class="date">2026年8月15日（金）夏季ピーク日</div>
+    </div>
+  </div>
+
+  <!-- OLTC Panel -->
+  <div class="panel" id="oltc-panel">
+    <h4>OLTC (変電所タップ)</h4>
+    <div class="row"><span>タップ位置</span><span id="oltc-tap" style="color:#f9e2af;font-weight:700">1.030 pu</span></div>
+    <div class="row"><span>デッドバンド</span><span>±0.010 pu</span></div>
+    <div class="row"><span>動作遅延</span><span id="oltc-delay">30秒</span></div>
+    <div class="row"><span>タップ範囲</span><span>1.00〜1.05</span></div>
+    <div class="row"><span>状態</span><span id="oltc-state" style="color:#51cf66">待機</span></div>
+    <div class="bar"><div class="bar-fill" id="oltc-bar" style="background:#f9e2af;width:60%"></div></div>
+    <div class="row" style="font-size:.6rem;color:#444"><span>1.00</span><span>1.05</span></div>
+    <div style="margin-top:4px;padding:3px 5px;background:#0a0a18;border-radius:4px;font-size:.6rem;color:#555580">
+      <span style="color:#00c8ff">DS:</span> DSO→カタログにタップ状態を公開
+    </div>
+  </div>
+
+  <!-- SVR Panel -->
+  <div class="panel" id="svr-panel">
+    <h4>SVR (線路電圧調整器)</h4>
+    <div class="row"><span>設置位置</span><span>F-101 Pole #15</span></div>
+    <div class="row"><span>補償量</span><span id="svr-comp" style="color:#74c0fc;font-weight:700">0.000 pu</span></div>
+    <div class="row"><span>デッドバンド</span><span>±0.015 pu</span></div>
+    <div class="row"><span>動作遅延</span><span id="svr-delay">45秒</span></div>
+    <div class="row"><span>入力電圧</span><span id="svr-vin">—</span></div>
+    <div class="row"><span>出力電圧</span><span id="svr-vout">—</span></div>
+    <div class="row"><span>状態</span><span id="svr-state" style="color:#51cf66">待機</span></div>
+    <div class="bar"><div class="bar-fill" id="svr-bar" style="background:#74c0fc;width:50%"></div></div>
+    <div class="row" style="font-size:.6rem;color:#444"><span>-5%</span><span>+5%</span></div>
+    <div style="margin-top:4px;padding:3px 5px;background:#0a0a18;border-radius:4px;font-size:.6rem;color:#555580">
+      <span style="color:#00c8ff">DS:</span> OLTC状態を参照し時限協調
+    </div>
+  </div>
+
+  <!-- System Voltage Panel -->
+  <div class="panel" id="sys-panel" style="position:fixed;top:496px;left:12px;width:200px">
+    <h4>系統電圧サマリ</h4>
+    <div class="row"><span>最低電圧</span><span id="sys-vmin" style="font-weight:700">—</span></div>
+    <div class="row"><span>平均電圧</span><span id="sys-vavg">—</span></div>
+    <div class="row"><span>最高電圧</span><span id="sys-vmax">—</span></div>
+    <div class="row"><span>逸脱柱数</span><span id="sys-viols" style="color:#ff6b6b">0</span></div>
+    <div class="row"><span>系統負荷</span><span id="sys-load">0 kW</span></div>
+    <div class="row"><span>負荷率</span><span id="sys-util">0%</span></div>
+    <div class="bar"><div class="bar-fill" id="sys-bar" style="background:#f9e2af;width:0"></div></div>
+  </div>
+
+  <!-- DR Panel -->
+  <div class="panel" id="dr-panel">
+    <h4>DR (デマンドレスポンス)</h4>
+    <div class="row"><span>状態</span><span id="dr-state" style="color:#555580">待機</span></div>
+    <div class="row"><span>削減量</span><span id="dr-kw">0 kW</span></div>
+    <div class="row"><span>EV制御</span><span id="dr-ev">0 台</span></div>
+    <div class="row"><span>蓄電池放電</span><span id="dr-bt">0 台</span></div>
+    <div class="row"><span>AC抑制</span><span id="dr-ac">0 台</span></div>
+    <div class="row"><span>削減率</span><span id="dr-pct">0%</span></div>
+    <div class="bar"><div class="bar-fill" id="dr-bar" style="background:#51cf66;width:0"></div></div>
+    <div style="margin-top:4px;padding:3px 5px;background:#0a0a18;border-radius:4px;font-size:.6rem;color:#555580">
+      <span style="color:#00c8ff">DS:</span> Agg→契約経由で柔軟性提供
+    </div>
+  </div>
+
+  <!-- House Detail Panel -->
+  <div class="panel" id="house-panel">
+    <h4>需要家詳細: H-0042 (末端付近)</h4>
+    <div style="text-align:center;margin:4px 0">
+      <svg width="260" height="100" viewBox="0 0 260 100" id="house-svg">
+        <!-- House outline -->
+        <rect x="10" y="30" width="240" height="65" rx="4" fill="#0a0a1a" stroke="#1e1e40"/>
+        <!-- Roof -->
+        <polygon points="10,30 130,5 250,30" fill="#0f0f1a" stroke="#1e1e40"/>
+        <!-- PV on roof -->
+        <rect x="60" y="12" width="50" height="14" rx="2" fill="#0a1a0a" stroke="#51cf66" stroke-width="1" opacity=".8"/>
+        <text x="85" y="22" text-anchor="middle" fill="#51cf66" font-size="7" font-weight="bold">PV 4.5kW</text>
+        <!-- Grid connection (left) -->
+        <line x1="0" y1="50" x2="10" y2="50" stroke="#f9e2af" stroke-width="2"/>
+        <text x="5" y="45" text-anchor="middle" fill="#f9e2af" font-size="6">系統</text>
+        <!-- Smart meter -->
+        <rect x="14" y="42" width="22" height="16" rx="2" fill="#1a1a2a" stroke="#f9e2af"/>
+        <text x="25" y="53" text-anchor="middle" fill="#f9e2af" font-size="5">メータ</text>
+        <!-- HEMS -->
+        <rect x="42" y="38" width="30" height="24" rx="3" fill="#0a1a2a" stroke="#00c8ff" stroke-width="1.5"/>
+        <text x="57" y="49" text-anchor="middle" fill="#00c8ff" font-size="5.5" font-weight="bold">HEMS</text>
+        <text x="57" y="57" text-anchor="middle" fill="#555580" font-size="4.5">Wi-SUN</text>
+        <!-- Distribution inside house -->
+        <line x1="72" y1="50" x2="240" y2="50" stroke="#333" stroke-width="1" stroke-dasharray="2,2"/>
+        <!-- EV -->
+        <rect x="80" y="60" width="38" height="28" rx="3" id="dev-ev-box" fill="#0a0a1a" stroke="#ffa94d"/>
+        <text x="99" y="72" text-anchor="middle" fill="#ffa94d" font-size="6" font-weight="bold">EV</text>
+        <text x="99" y="82" text-anchor="middle" id="dev-ev-txt" fill="#555580" font-size="5">6kW充電</text>
+        <!-- Battery -->
+        <rect x="124" y="60" width="38" height="28" rx="3" id="dev-bat-box" fill="#0a0a1a" stroke="#51cf66"/>
+        <text x="143" y="72" text-anchor="middle" fill="#51cf66" font-size="6" font-weight="bold">蓄電池</text>
+        <text x="143" y="82" text-anchor="middle" id="dev-bat-txt" fill="#555580" font-size="5">7kWh</text>
+        <!-- AC -->
+        <rect x="168" y="60" width="38" height="28" rx="3" id="dev-ac-box" fill="#0a0a1a" stroke="#74c0fc"/>
+        <text x="187" y="72" text-anchor="middle" fill="#74c0fc" font-size="6" font-weight="bold">AC</text>
+        <text x="187" y="82" text-anchor="middle" id="dev-ac-txt" fill="#555580" font-size="5">2.2kW</text>
+        <!-- HP (Eco-cute) -->
+        <rect x="212" y="60" width="38" height="28" rx="3" id="dev-hp-box" fill="#0a0a1a" stroke="#b197fc"/>
+        <text x="231" y="72" text-anchor="middle" fill="#b197fc" font-size="6" font-weight="bold">HP</text>
+        <text x="231" y="82" text-anchor="middle" id="dev-hp-txt" fill="#555580" font-size="5">待機</text>
+        <!-- DR signal arrow -->
+        <g id="dr-signal" opacity="0">
+          <line x1="57" y1="62" x2="57" y2="70" stroke="#fcc419" stroke-width="1.5" marker-end="url(#arr)"/>
+          <text x="57" y="78" text-anchor="middle" fill="#fcc419" font-size="5" font-weight="bold">DR信号</text>
+          <line x1="72" y1="75" x2="80" y2="75" stroke="#fcc419" stroke-width="1" stroke-dasharray="2,1"/>
+          <line x1="72" y1="75" x2="124" y2="75" stroke="#fcc419" stroke-width="1" stroke-dasharray="2,1" opacity=".5"/>
+          <line x1="72" y1="75" x2="168" y2="75" stroke="#fcc419" stroke-width="1" stroke-dasharray="2,1" opacity=".3"/>
+        </g>
+        <defs><marker id="arr" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#fcc419"/></marker></defs>
+      </svg>
+    </div>
+
+    <!-- Device detail cards -->
+    <div class="dev-card" id="dc-pv">
+      <div class="dev-name" style="color:#51cf66">太陽光 (PV) 4.5kW</div>
+      <div class="dev-bar"><div class="dev-fill" id="pv-fill" style="background:#51cf66;width:0"></div></div>
+      <div class="row"><span class="dev-stat">発電量</span><span class="dev-stat" id="pv-val">0.0 kW</span></div>
+    </div>
+    <div class="dev-card" id="dc-ev">
+      <div class="dev-name" style="color:#ffa94d">EV充電器 6kW (普通充電)</div>
+      <div class="dev-bar"><div class="dev-fill" id="ev-fill" style="background:#ffa94d;width:0"></div></div>
+      <div class="row"><span class="dev-stat">充電電力</span><span class="dev-stat" id="ev-val">0.0 kW</span></div>
+      <div class="row"><span class="dev-stat">SOC</span><span class="dev-stat" id="ev-soc">45%</span></div>
+      <div class="row"><span class="dev-stat">DR</span><span class="dev-stat" id="ev-dr" style="color:#555580">—</span></div>
+    </div>
+    <div class="dev-card" id="dc-bat">
+      <div class="dev-name" style="color:#51cf66">家庭用蓄電池 7kWh</div>
+      <div class="dev-bar"><div class="dev-fill" id="bat-fill" style="background:#51cf66;width:60%"></div></div>
+      <div class="row"><span class="dev-stat">充放電</span><span class="dev-stat" id="bat-val">0.0 kW</span></div>
+      <div class="row"><span class="dev-stat">SOC</span><span class="dev-stat" id="bat-soc">60%</span></div>
+      <div class="row"><span class="dev-stat">DR</span><span class="dev-stat" id="bat-dr" style="color:#555580">—</span></div>
+    </div>
+    <div class="dev-card" id="dc-ac">
+      <div class="dev-name" style="color:#74c0fc">エアコン 2.2kW</div>
+      <div class="dev-bar"><div class="dev-fill" id="ac-fill" style="background:#74c0fc;width:0"></div></div>
+      <div class="row"><span class="dev-stat">消費電力</span><span class="dev-stat" id="ac-val">0.0 kW</span></div>
+      <div class="row"><span class="dev-stat">設定温度</span><span class="dev-stat" id="ac-temp">26℃</span></div>
+      <div class="row"><span class="dev-stat">DR</span><span class="dev-stat" id="ac-dr" style="color:#555580">—</span></div>
+    </div>
+    <div class="dev-card" id="dc-total">
+      <div class="dev-name" style="color:#f9e2af">需要家合計</div>
+      <div class="row"><span class="dev-stat">消費</span><span class="dev-stat" id="h-load" style="color:#f9e2af">0.0 kW</span></div>
+      <div class="row"><span class="dev-stat">発電</span><span class="dev-stat" id="h-gen" style="color:#51cf66">0.0 kW</span></div>
+      <div class="row"><span class="dev-stat">ネット</span><span class="dev-stat" id="h-net" style="color:#00c8ff;font-weight:700">0.0 kW</span></div>
+      <div class="row"><span class="dev-stat">受電電圧</span><span class="dev-stat" id="h-volt">1.000 pu</span></div>
+    </div>
+  </div>
+
+  <!-- Data Space Panel -->
+  <div class="panel" id="ds-panel">
+    <h4>Data Space 協調フロー</h4>
+    <div class="ds-step" id="ds1" style="border-color:#f9e2af"><span style="color:#f9e2af">1.</span> DSO: 系統状態をカタログに公開</div>
+    <div class="ds-step" id="ds2" style="border-color:#f9e2af"><span style="color:#f9e2af">2.</span> OLTC: タップ位置・整定値を共有</div>
+    <div class="ds-step" id="ds3" style="border-color:#74c0fc"><span style="color:#74c0fc">3.</span> SVR: OLTC状態を参照→時限調整</div>
+    <div class="ds-step" id="ds4" style="border-color:#ff6b6b"><span style="color:#ff6b6b">4.</span> DSO: 電圧逸脱検出→混雑信号発行</div>
+    <div class="ds-step" id="ds5" style="border-color:#b197fc"><span style="color:#b197fc">5.</span> 契約交渉: DSO⇔Agg (目的:電圧制御)</div>
+    <div class="ds-step" id="ds6" style="border-color:#74c0fc"><span style="color:#74c0fc">6.</span> Agg: 柔軟性エンベロープ計算・提出</div>
+    <div class="ds-step" id="ds7" style="border-color:#51cf66"><span style="color:#51cf66">7.</span> DR発動: HEMS→機器制御</div>
+    <div class="ds-step" id="ds8" style="border-color:#51cf66"><span style="color:#51cf66">8.</span> OLTC: DR効果確認→タップ戻し</div>
+    <div class="ds-step" id="ds9" style="border-color:#51cf66"><span style="color:#51cf66">9.</span> SVR: 電圧安定→補償量低減</div>
+    <div class="ds-step" id="ds10" style="border-color:#00c8ff"><span style="color:#00c8ff">10.</span> 全交換を監査ログに記録 (SHA-256)</div>
+  </div>
+</div>
+
+<canvas id="c"></canvas>
+
+<script>
+const C=document.getElementById('c'),ctx=C.getContext('2d');
+let W,H;
+function resize(){W=C.width=innerWidth;H=C.height=innerHeight}
+resize();addEventListener('resize',resize);
+
+// ── Deterministic RNG ──
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t^=t+Math.imul(t^t>>>7,61|t);return((t^t>>>14)>>>0)/4294967296}}
+const rng=mulberry32(42),R=()=>rng(),Rn=(m,s)=>{let u=0,v=0;while(!u)u=R();while(!v)v=R();return m+s*Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)};
+
+// ── Grid Parameters ──
+const LINE_R=0.27, LINE_X=0.35, V_BASE=6600, S_BASE=5000;
+const Z_BASE=V_BASE*V_BASE/(S_BASE*1000);
+const I_RATED=S_BASE*1000/(Math.sqrt(3)*V_BASE);
+const SPAN_M=35, V_MIN=0.95, V_MAX=1.05, PF=0.95;
+
+// ── OLTC State ──
+const oltc={
+  tap:1.03, tapMin:1.00, tapMax:1.05, tapStep:0.005,
+  deadband:0.01, targetV:1.03,
+  delay:0, delayMax:6, // 6 steps = ~30 sec equivalent
+  state:'standby', // standby, counting, stepping
+  measureV:1.03
+};
+
+// ── SVR State ──
+const svr={
+  poleIdx:14, // installed at pole 15 (0-indexed)
+  comp:0, compMin:-0.05, compMax:0.05, compStep:0.005,
+  deadband:0.015, targetV:1.00,
+  delay:0, delayMax:9, // 45 sec (longer than OLTC for coordination)
+  state:'standby',
+  vIn:1.0, vOut:1.0
+};
+
+// ── House H-0042 detail ──
+const house={
+  pvCap:4.5, pvGen:0,
+  evPow:6, evCharging:0, evSOC:45, evStart:17.5,
+  battCap:7, battPow:0, battSOC:60,
+  acPow:2.2, acLoad:0, acTemp:26, acTempDR:26,
+  hpPow:0, basePow:1.2,
+  totalLoad:0, totalGen:0, netLoad:0,
+  voltage:1.0, drActive:false
+};
+
+// ── Grid topology (simplified for visualization) ──
+const grid={feeders:[]};
+
+function buildGrid(){
+  // F-101: 30 trunk poles + 2 branches
+  const f1={id:'F-101',color:'#ff6b6b',trunk:[],branches:[],allPoles:[]};
+  for(let i=0;i<30;i++){
+    const p={id:'F101-T'+i,idx:i,distKm:i*SPAN_M/1000,houses:[],voltage:1.0,pFlow:0,qFlow:0,isBranch:false,branchFrom:-1};
+    f1.trunk.push(p);f1.allPoles.push(p);
+  }
+  // Branch at pole 12
+  for(let i=0;i<10;i++){
+    const p={id:'F101-B1-'+i,idx:i,distKm:(12+i)*SPAN_M/1000,houses:[],voltage:1.0,pFlow:0,qFlow:0,isBranch:true,branchFrom:12,branchId:0};
+    f1.branches.push(p);f1.allPoles.push(p);
+  }
+  // Branch at pole 22
+  for(let i=0;i<10;i++){
+    const p={id:'F101-B2-'+i,idx:i,distKm:(22+i)*SPAN_M/1000,houses:[],voltage:1.0,pFlow:0,qFlow:0,isBranch:true,branchFrom:22,branchId:1};
+    f1.branches.push(p);f1.allPoles.push(p);
+  }
+  grid.feeders.push(f1);
+
+  // F-102: 25 trunk + 3 branches
+  const f2={id:'F-102',color:'#74c0fc',trunk:[],branches:[],allPoles:[]};
+  for(let i=0;i<25;i++){
+    const p={id:'F102-T'+i,idx:i,distKm:i*SPAN_M/1000,houses:[],voltage:1.0,pFlow:0,qFlow:0,isBranch:false,branchFrom:-1};
+    f2.trunk.push(p);f2.allPoles.push(p);
+  }
+  for(let b=0;b<3;b++){
+    const from=[8,15,21][b];
+    for(let i=0;i<8;i++){
+      const p={id:'F102-B'+b+'-'+i,idx:i,distKm:(from+i)*SPAN_M/1000,houses:[],voltage:1.0,pFlow:0,qFlow:0,isBranch:true,branchFrom:from,branchId:b};
+      f2.branches.push(p);f2.allPoles.push(p);
+    }
+  }
+  grid.feeders.push(f2);
+
+  // Assign houses
+  let hCount=0;
+  for(const f of grid.feeders){
+    for(const p of f.allPoles){
+      const n=Math.round(Rn(10,2));
+      for(let i=0;i<n;i++){
+        hCount++;
+        p.houses.push({
+          hasEV:R()<.30, hasPV:R()<(0.15+0.2*p.distKm/2),
+          hasBatt:R()<.15, hasAC:R()<.85,
+          evPow:R()<.3?6:3, evStart:Rn(17,1.5),
+          pvCap:Rn(4.5,1.5), battCap:Rn(7,2),
+          acPow:Rn(2,.5), basePow:Rn(1.2,.3),
+          load:0, gen:0, drReduce:0
+        });
+      }
+    }
+  }
+}
+
+function computeLoads(h){
+  for(const f of grid.feeders){
+    for(const p of f.allPoles){
+      for(const hh of p.houses){
+        let base=hh.basePow*(0.4+0.3*Math.sin(Math.PI*(h-6)/12)+0.3*Math.sin(Math.PI*(h-18)/6));
+        base=Math.max(0.15,base);
+        let ac=0;
+        if(hh.hasAC&&h>=11&&h<21) ac=hh.acPow*Math.exp(-0.5*((h-15)/3)**2);
+        let ev=0;
+        if(hh.hasEV) ev=hh.evPow*Math.exp(-0.5*((h-hh.evStart)/1.5)**2);
+        if(ev<0.05)ev=0;
+        hh.load=base+ac+ev;
+        hh.gen=0;
+        if(hh.hasPV&&h>=6&&h<18){
+          hh.gen=hh.pvCap*Math.sin(Math.PI*(h-6)/12)*(.7+.3*R());
+        }
+      }
+    }
+  }
+  // Update house detail
+  updateHouseDetail(h);
+}
+
+function updateHouseDetail(h){
+  // PV
+  house.pvGen=0;
+  if(h>=6&&h<18) house.pvGen=house.pvCap*Math.sin(Math.PI*(h-6)/12)*0.85;
+
+  // Base load
+  let base=house.basePow*(0.4+0.3*Math.sin(Math.PI*(h-6)/12)+0.3*Math.sin(Math.PI*(h-18)/6));
+  base=Math.max(0.15,base);
+
+  // AC
+  house.acLoad=0;
+  if(h>=11&&h<21) house.acLoad=house.acPow*Math.exp(-0.5*((h-15)/3)**2);
+
+  // EV
+  house.evCharging=0;
+  if(h>=15&&h<22) house.evCharging=house.evPow*Math.exp(-0.5*((h-house.evStart)/1.5)**2);
+  if(house.evCharging<0.1)house.evCharging=0;
+  if(house.evCharging>0) house.evSOC=Math.min(100,house.evSOC+house.evCharging*0.25/house.evPow);
+
+  // HP
+  house.hpPow=0;
+  if(h>=5&&h<7) house.hpPow=2.0; // early morning hot water
+
+  house.totalLoad=base+house.acLoad+house.evCharging+house.hpPow;
+  house.totalGen=house.pvGen;
+
+  // DR effects
+  if(house.drActive){
+    // EV: reduce to 20%
+    if(house.evCharging>0){
+      const cut=house.evCharging*0.8;
+      house.evCharging-=cut;
+      house.totalLoad-=cut;
+    }
+    // Battery: discharge 2kW
+    if(house.battSOC>20){
+      house.battPow=-2.0;
+      house.battSOC=Math.max(20,house.battSOC-0.5);
+      house.totalLoad+=house.battPow; // negative = discharge
+    }
+    // AC: raise setpoint +2
+    house.acTempDR=28;
+    const acReduce=house.acLoad*0.25;
+    house.acLoad-=acReduce;
+    house.totalLoad-=acReduce;
+  } else {
+    house.battPow=0;
+    house.acTempDR=26;
+    // Charge battery from PV surplus
+    if(house.pvGen>house.totalLoad&&house.battSOC<90){
+      house.battPow=Math.min(2.5,house.pvGen-house.totalLoad);
+      house.battSOC=Math.min(90,house.battSOC+house.battPow*0.15);
+      house.totalLoad+=house.battPow;
+    }
+  }
+
+  house.netLoad=house.totalLoad-house.totalGen;
+}
+
+// ── Power Flow with OLTC + SVR ──
+function powerFlow(feeder){
+  const vSend=oltc.tap;
+
+  // Backward sweep
+  for(let i=feeder.trunk.length-1;i>=0;i--){
+    const p=feeder.trunk[i];
+    let pL=0,qL=0;
+    for(const h of p.houses){pL+=Math.max(0,h.load-h.gen-h.drReduce);qL+=Math.max(0,h.load-h.gen-h.drReduce)*Math.tan(Math.acos(PF))}
+    if(i<feeder.trunk.length-1){pL+=feeder.trunk[i+1].pFlow;qL+=feeder.trunk[i+1].qFlow}
+    // Branch loads
+    for(const bp of feeder.branches){
+      if(bp.branchFrom===i&&bp.idx===0){
+        const bPoles=feeder.branches.filter(x=>x.branchId===bp.branchId);
+        for(const bb of bPoles){for(const h of bb.houses){const n=Math.max(0,h.load-h.gen-h.drReduce);pL+=n;qL+=n*Math.tan(Math.acos(PF))}}
+      }
+    }
+    p.pFlow=pL;p.qFlow=qL;
+  }
+
+  // Forward sweep with SVR
+  let v=vSend, totalViols=0, minV=vSend;
+  for(let i=0;i<feeder.trunk.length;i++){
+    const p=feeder.trunk[i];
+    const r=LINE_R*SPAN_M/1000, x=LINE_X*SPAN_M/1000;
+    const dv=(p.pFlow/S_BASE*(r/Z_BASE)+p.qFlow/S_BASE*(x/Z_BASE))/v;
+    v-=dv;
+
+    // SVR boost at its location (only on F-101)
+    if(feeder.id==='F-101'&&i===svr.poleIdx){
+      svr.vIn=v;
+      v+=svr.comp;
+      svr.vOut=v;
+    }
+
+    p.voltage=Math.max(0.80,v);
+    if(p.voltage<V_MIN)totalViols++;
+    if(p.voltage<minV)minV=p.voltage;
+
+    // Branch voltage
+    for(const bp of feeder.branches){
+      if(bp.branchFrom===i&&bp.idx===0){
+        let bv=v;
+        const bPoles=feeder.branches.filter(x=>x.branchId===bp.branchId).sort((a,b)=>a.idx-b.idx);
+        for(const bb of bPoles){
+          let bpD=0,bqD=0;
+          for(let j=bb.idx;j<bPoles.length;j++){for(const h of bPoles[j].houses){const n=Math.max(0,h.load-h.gen-h.drReduce);bpD+=n;bqD+=n*Math.tan(Math.acos(PF))}}
+          const bdv=(bpD/S_BASE*(LINE_R*SPAN_M/1000/Z_BASE)+bqD/S_BASE*(LINE_X*SPAN_M/1000/Z_BASE))/bv;
+          bv-=bdv;
+          bb.voltage=Math.max(0.80,bv);
+          if(bb.voltage<V_MIN)totalViols++;
+          if(bb.voltage<minV)minV=bb.voltage;
+        }
+      }
+    }
+  }
+  return{totalViols,minV,totalLoad:feeder.trunk[0]?.pFlow||0};
+}
+
+// ── OLTC Controller ──
+function updateOLTC(minVoltage, maxVoltage, totalLoad){
+  // Measure: end-of-feeder voltage
+  oltc.measureV=minVoltage;
+
+  // Check if voltage is outside deadband
+  if(minVoltage < oltc.targetV - oltc.deadband){
+    // Voltage too low → need to raise tap
+    if(oltc.state==='standby'){
+      oltc.state='counting';
+      oltc.delay=0;
+    }
+    oltc.delay++;
+    if(oltc.delay>=oltc.delayMax&&oltc.tap<oltc.tapMax){
+      oltc.tap=Math.min(oltc.tapMax, oltc.tap+oltc.tapStep);
+      oltc.state='stepping';
+      oltc.delay=0;
+      setTimeout(()=>{oltc.state='standby'},500);
+    }
+  } else if(minVoltage > oltc.targetV + oltc.deadband + 0.02){
+    // Voltage too high (after DR reduced load) → lower tap
+    if(oltc.state==='standby'){
+      oltc.state='counting';
+      oltc.delay=0;
+    }
+    oltc.delay++;
+    if(oltc.delay>=oltc.delayMax&&oltc.tap>oltc.tapMin){
+      oltc.tap=Math.max(oltc.tapMin, oltc.tap-oltc.tapStep);
+      oltc.state='stepping';
+      oltc.delay=0;
+      setTimeout(()=>{oltc.state='standby'},500);
+    }
+  } else {
+    oltc.state='standby';
+    oltc.delay=0;
+  }
+}
+
+// ── SVR Controller ──
+function updateSVR(){
+  // SVR waits for OLTC to act first (longer delay = coordination)
+  // Target: maintain voltage at SVR output ≈ 1.00 pu
+  const vTarget=1.00;
+  if(svr.vIn < vTarget - svr.deadband){
+    if(svr.state==='standby'){svr.state='counting';svr.delay=0}
+    svr.delay++;
+    if(svr.delay>=svr.delayMax&&svr.comp<svr.compMax){
+      svr.comp=Math.min(svr.compMax, svr.comp+svr.compStep);
+      svr.state='stepping';
+      svr.delay=0;
+      setTimeout(()=>{svr.state='standby'},500);
+    }
+  } else if(svr.vIn > vTarget + svr.deadband){
+    if(svr.state==='standby'){svr.state='counting';svr.delay=0}
+    svr.delay++;
+    if(svr.delay>=svr.delayMax&&svr.comp>svr.compMin){
+      svr.comp=Math.max(svr.compMin, svr.comp-svr.compStep);
+      svr.state='stepping';
+      svr.delay=0;
+      setTimeout(()=>{svr.state='standby'},500);
+    }
+  } else {
+    svr.state='standby';svr.delay=0;
+  }
+}
+
+// ── DR ──
+let drActive=false;
+function applyDR(h){
+  let totalRed=0,nEV=0,nBatt=0,nAC=0;
+  if(!drActive)return{totalRed,nEV,nBatt,nAC};
+  const ramp=h<14.5?(h-14)/0.5:h>18.5?(19-h)/0.5:1;
+  for(const f of grid.feeders){
+    for(const p of f.allPoles){
+      const urgency=Math.max(0,(V_MIN+0.02-p.voltage)*50);
+      const factor=Math.min(1,ramp*(0.3+urgency));
+      for(const hh of p.houses){
+        hh.drReduce=0;
+        if(hh.hasEV&&hh.load>hh.basePow+0.5){
+          const evNow=hh.evPow*Math.exp(-0.5*((h-hh.evStart)/1.5)**2);
+          if(evNow>0.5){hh.drReduce+=evNow*0.8*factor;nEV++}
+        }
+        if(hh.hasBatt&&factor>0.2){hh.drReduce+=Math.min(3,hh.battCap*0.25)*factor;nBatt++}
+        if(hh.hasAC&&hh.acPow>0&&h>=12&&h<20){
+          const acNow=hh.acPow*Math.exp(-0.5*((h-15)/3)**2);
+          if(acNow>0.3){hh.drReduce+=acNow*0.25*factor;nAC++}
+        }
+        totalRed+=hh.drReduce;
+      }
+    }
+  }
+  return{totalRed,nEV,nBatt,nAC};
+}
+
+// ── Canvas Drawing ──
+function voltC(v){return v>=0.97?'#51cf66':v>=0.95?'#fcc419':'#ff6b6b'}
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath()}
+
+const loadHist=[],tapHist=[],svrHist=[],vMinHist=[],vMaxHist=[],vAvgHist=[],drRedHist=[];
+
+function drawScene(h){
+  ctx.fillStyle='#060610';ctx.fillRect(0,0,W,H);
+  // Grid bg
+  ctx.strokeStyle='#0c0c1a';ctx.lineWidth=1;
+  for(let i=0;i<W;i+=80){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,H);ctx.stroke()}
+  for(let i=0;i<H;i+=80){ctx.beginPath();ctx.moveTo(0,i);ctx.lineTo(W,i);ctx.stroke()}
+
+  const cx=W*0.43, cy=56; // substation position
+
+  // ── Substation ──
+  ctx.fillStyle='#12122a';ctx.strokeStyle='#f9e2af';ctx.lineWidth=2;
+  rr(cx-55,cy-22,110,44,6);ctx.fill();ctx.stroke();
+  ctx.fillStyle='#f9e2af';ctx.font='bold 10px sans-serif';ctx.textAlign='center';
+  ctx.fillText('柏変電所 (OLTC)',cx,cy-6);
+  ctx.font='9px monospace';
+  ctx.fillText('Tap: '+oltc.tap.toFixed(3)+' pu',cx,cy+8);
+
+  // OLTC state indicator
+  const tapColor=oltc.state==='stepping'?'#fcc419':oltc.state==='counting'?'#ffa94d':'#51cf66';
+  ctx.beginPath();ctx.arc(cx+48,cy-14,4,0,Math.PI*2);ctx.fillStyle=tapColor;ctx.fill();
+
+  // ── Feeders ──
+  for(let fi=0;fi<grid.feeders.length;fi++){
+    const f=grid.feeders[fi];
+    const baseX=fi===0?cx-30:cx+30;
+    const dir=fi===0?-1:1;
+
+    // Compute pole positions
+    for(let i=0;i<f.trunk.length;i++){
+      const t=i/f.trunk.length;
+      f.trunk[i]._x=baseX+dir*(15+t*W*0.22)+Math.sin(t*3)*8;
+      f.trunk[i]._y=cy+45+t*(H-180);
+    }
+    for(const bp of f.branches){
+      const tp=f.trunk[bp.branchFrom];
+      if(!tp)continue;
+      bp._x=tp._x+dir*(12+bp.idx*22);
+      bp._y=tp._y+bp.idx*10;
+    }
+
+    // Draw trunk line
+    ctx.beginPath();ctx.strokeStyle=f.color;ctx.lineWidth=2.5;ctx.globalAlpha=0.4;
+    ctx.moveTo(cx,cy+22);
+    for(const p of f.trunk)ctx.lineTo(p._x,p._y);
+    ctx.stroke();ctx.globalAlpha=1;
+
+    // Branch lines
+    for(const bp of f.branches){
+      if(bp.idx===0){
+        const tp=f.trunk[bp.branchFrom];if(!tp)continue;
+        ctx.beginPath();ctx.strokeStyle=f.color;ctx.lineWidth=1.5;ctx.globalAlpha=0.25;
+        ctx.moveTo(tp._x,tp._y);
+        const bPoles=f.branches.filter(x=>x.branchId===bp.branchId).sort((a,b)=>a.idx-b.idx);
+        for(const bb of bPoles)ctx.lineTo(bb._x,bb._y);
+        ctx.stroke();ctx.globalAlpha=1;
+      }
+    }
+
+    // SVR marker (only F-101)
+    if(fi===0&&f.trunk.length>svr.poleIdx){
+      const sp=f.trunk[svr.poleIdx];
+      ctx.strokeStyle='#74c0fc';ctx.lineWidth=2;
+      rr(sp._x-14,sp._y-10,28,20,4);ctx.stroke();
+      ctx.fillStyle='#0a1a2a';rr(sp._x-14,sp._y-10,28,20,4);ctx.fill();
+      ctx.strokeStyle='#74c0fc';rr(sp._x-14,sp._y-10,28,20,4);ctx.stroke();
+      ctx.fillStyle='#74c0fc';ctx.font='bold 7px sans-serif';ctx.textAlign='center';
+      ctx.fillText('SVR',sp._x,sp._y);
+      ctx.font='6px monospace';
+      ctx.fillText((svr.comp>=0?'+':'')+svr.comp.toFixed(3),sp._x,sp._y+8);
+
+      // SVR state indicator
+      const svrColor=svr.state==='stepping'?'#fcc419':svr.state==='counting'?'#ffa94d':'#51cf66';
+      ctx.beginPath();ctx.arc(sp._x+12,sp._y-8,3,0,Math.PI*2);ctx.fillStyle=svrColor;ctx.fill();
+    }
+
+    // Feeder label
+    if(f.trunk.length>2){
+      ctx.fillStyle=f.color;ctx.font='bold 9px sans-serif';ctx.textAlign='center';
+      ctx.fillText(f.id,f.trunk[1]._x,f.trunk[1]._y-10);
+    }
+
+    // Poles
+    for(const p of f.allPoles){
+      const vc=voltC(p.voltage);
+      const pLoad=p.houses.reduce((s,hh)=>s+Math.max(0,hh.load-hh.gen-hh.drReduce),0);
+      const sz=Math.min(4.5,1.5+pLoad/25);
+
+      if(p.voltage<V_MIN){
+        ctx.beginPath();ctx.arc(p._x,p._y,sz+6,0,Math.PI*2);
+        ctx.fillStyle='rgba(255,107,107,.12)';ctx.fill();
+      }
+
+      ctx.beginPath();ctx.arc(p._x,p._y,sz,0,Math.PI*2);
+      ctx.fillStyle=vc;ctx.globalAlpha=0.8;ctx.fill();ctx.globalAlpha=1;
+
+      // DR indicator
+      if(drActive){
+        const drH=p.houses.filter(hh=>hh.drReduce>0.1);
+        if(drH.length>0){
+          ctx.fillStyle='rgba(81,207,102,.5)';
+          ctx.beginPath();ctx.arc(p._x+sz+2,p._y-sz-1,2,0,Math.PI*2);ctx.fill();
+        }
+      }
+
+      // Houses (tiny squares)
+      for(let hi=0;hi<Math.min(p.houses.length,8);hi++){
+        const a=(hi/Math.min(p.houses.length,8))*Math.PI*2-Math.PI/2;
+        const hr=sz+7;
+        const hx=p._x+Math.cos(a)*hr;
+        const hy=p._y+Math.sin(a)*hr;
+        const hh=p.houses[hi];
+        let hc='#2a2a4a';
+        if(hh.drReduce>0.1)hc='#51cf66';
+        else if(hh.hasEV&&hh.load>hh.basePow+2)hc='#ffa94d';
+        else if(hh.hasPV&&hh.gen>1)hc='#fcc419';
+        ctx.fillStyle=hc;ctx.globalAlpha=0.4;
+        ctx.fillRect(hx-1.5,hy-1.5,3,3);
+      }
+      ctx.globalAlpha=1;
+
+      // Voltage label
+      if((p.idx%10===0&&!p.isBranch)||(p.isBranch&&p.idx===9)){
+        ctx.fillStyle=vc;ctx.font='7px monospace';ctx.textAlign='left';
+        ctx.fillText(p.voltage.toFixed(3),p._x+sz+4,p._y+3);
+      }
+    }
+  }
+
+  // ── Bottom charts ──
+  drawVoltageTimeSeries(h);
+  drawLoadCurve(h);
+  drawTimeline(h);
+  drawVoltageProfile();
+}
+
+// ── System-wide voltage time series ──
+function drawVoltageTimeSeries(h){
+  const x0=220,y0=H-310,w=(W-520)/2-4,ht=90;
+  ctx.fillStyle='rgba(10,10,24,.92)';rr(x0,y0,w,ht,6);ctx.fill();
+  ctx.strokeStyle='#1e1e40';rr(x0,y0,w,ht,6);ctx.stroke();
+
+  ctx.fillStyle='#555580';ctx.font='8px sans-serif';ctx.textAlign='left';
+  ctx.fillText('全体電圧 (時系列)',x0+8,y0+12);
+
+  const vLo=0.90,vHi=1.08, plotH=ht-28, plotY=y0+20;
+
+  // 0.95 / 1.05 limits
+  const ly95=plotY+plotH-((V_MIN-vLo)/(vHi-vLo))*plotH;
+  const ly105=plotY+plotH-((V_MAX-vLo)/(vHi-vLo))*plotH;
+  ctx.beginPath();ctx.strokeStyle='rgba(255,107,107,.4)';ctx.setLineDash([3,3]);ctx.lineWidth=1;
+  ctx.moveTo(x0+8,ly95);ctx.lineTo(x0+w-8,ly95);ctx.stroke();
+  ctx.moveTo(x0+8,ly105);ctx.lineTo(x0+w-8,ly105);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='#ff6b6b';ctx.font='6px monospace';
+  ctx.fillText('0.95',x0+w-24,ly95+8);
+  ctx.fillText('1.05',x0+w-24,ly105-2);
+
+  // 1.00 reference
+  const ly100=plotY+plotH-((1.0-vLo)/(vHi-vLo))*plotH;
+  ctx.beginPath();ctx.strokeStyle='rgba(255,255,255,.08)';ctx.lineWidth=1;
+  ctx.moveTo(x0+8,ly100);ctx.lineTo(x0+w-8,ly100);ctx.stroke();
+
+  if(vMinHist.length<2)return;
+  const n=vMinHist.length, pw=w-16;
+
+  // Fill band between min and max
+  ctx.beginPath();ctx.globalAlpha=0.12;
+  for(let i=0;i<n;i++){
+    const px=x0+8+(i/96)*pw;
+    const py=plotY+plotH-((vMaxHist[i]-vLo)/(vHi-vLo))*plotH;
+    i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+  }
+  for(let i=n-1;i>=0;i--){
+    const px=x0+8+(i/96)*pw;
+    const py=plotY+plotH-((vMinHist[i]-vLo)/(vHi-vLo))*plotH;
+    ctx.lineTo(px,py);
+  }
+  ctx.closePath();ctx.fillStyle='#74c0fc';ctx.fill();ctx.globalAlpha=1;
+
+  // Max voltage line
+  ctx.beginPath();ctx.strokeStyle='#74c0fc';ctx.lineWidth=1;ctx.globalAlpha=0.5;
+  for(let i=0;i<n;i++){
+    const px=x0+8+(i/96)*pw;
+    const py=plotY+plotH-((vMaxHist[i]-vLo)/(vHi-vLo))*plotH;
+    i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+  }ctx.stroke();ctx.globalAlpha=1;
+
+  // Avg voltage line
+  ctx.beginPath();ctx.strokeStyle='#f9e2af';ctx.lineWidth=1.5;
+  for(let i=0;i<n;i++){
+    const px=x0+8+(i/96)*pw;
+    const py=plotY+plotH-((vAvgHist[i]-vLo)/(vHi-vLo))*plotH;
+    i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+  }ctx.stroke();
+
+  // Min voltage line (most important)
+  ctx.beginPath();ctx.strokeStyle='#ff6b6b';ctx.lineWidth=2;
+  for(let i=0;i<n;i++){
+    const px=x0+8+(i/96)*pw;
+    const py=plotY+plotH-((vMinHist[i]-vLo)/(vHi-vLo))*plotH;
+    i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+  }ctx.stroke();
+
+  // OLTC tap overlay (secondary axis)
+  ctx.beginPath();ctx.strokeStyle='#f9e2af';ctx.lineWidth=1;ctx.setLineDash([2,2]);
+  for(let i=0;i<tapHist.length&&i<n;i++){
+    const px=x0+8+(i/96)*pw;
+    const py=plotY+plotH-((tapHist[i]-vLo)/(vHi-vLo))*plotH;
+    i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+  }ctx.stroke();ctx.setLineDash([]);
+
+  // Current value labels
+  if(n>0){
+    const lastMin=vMinHist[n-1],lastMax=vMaxHist[n-1],lastAvg=vAvgHist[n-1];
+    ctx.font='bold 7px monospace';ctx.textAlign='right';
+    ctx.fillStyle='#ff6b6b';ctx.fillText('Min: '+lastMin.toFixed(3),x0+w-8,plotY+plotH-((lastMin-vLo)/(vHi-vLo))*plotH-2);
+    ctx.fillStyle='#f9e2af';ctx.fillText('Avg: '+lastAvg.toFixed(3),x0+w-8,plotY+plotH-((lastAvg-vLo)/(vHi-vLo))*plotH-2);
+  }
+
+  // Legend
+  ctx.font='6px sans-serif';ctx.textAlign='left';
+  const lx=x0+8,ly=y0+ht-6;
+  ctx.fillStyle='#ff6b6b';ctx.fillRect(lx,ly-4,8,3);ctx.fillText('最低',lx+10,ly);
+  ctx.fillStyle='#f9e2af';ctx.fillRect(lx+30,ly-4,8,3);ctx.fillText('平均',lx+40,ly);
+  ctx.fillStyle='#74c0fc';ctx.fillRect(lx+60,ly-4,8,3);ctx.fillText('最高',lx+70,ly);
+  ctx.fillStyle='#f9e2af';ctx.fillRect(lx+90,ly-4,8,1);ctx.fillRect(lx+100,ly-4,3,1);ctx.fillRect(lx+105,ly-4,3,1);
+  ctx.fillText('OLTC tap',lx+110,ly);
+
+  // Time labels
+  ctx.fillStyle='#444';ctx.font='6px monospace';ctx.textAlign='center';
+  for(let t=0;t<=24;t+=6){const tx=x0+8+(t/24)*pw;ctx.fillText(t+':00',tx,y0+ht+7)}
+}
+
+// ── Load curve ──
+function drawLoadCurve(h){
+  const baseX=220,halfW=(W-520)/2-4;
+  const x0=baseX+halfW+8,y0=H-310,w=halfW,ht=90;
+  ctx.fillStyle='rgba(10,10,24,.92)';rr(x0,y0,w,ht,6);ctx.fill();
+  ctx.strokeStyle='#1e1e40';rr(x0,y0,w,ht,6);ctx.stroke();
+
+  ctx.fillStyle='#555580';ctx.font='8px sans-serif';ctx.textAlign='left';
+  ctx.fillText('系統負荷 (kW)',x0+8,y0+12);
+
+  if(loadHist.length<2)return;
+  const mx=7000, plotH=ht-28, plotY=y0+20, pw=w-16, n=loadHist.length;
+
+  // 5MW limit
+  const limY=plotY+plotH-(5000/mx)*plotH;
+  ctx.beginPath();ctx.strokeStyle='rgba(255,107,107,.4)';ctx.setLineDash([3,3]);ctx.lineWidth=1;
+  ctx.moveTo(x0+8,limY);ctx.lineTo(x0+w-8,limY);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='#ff6b6b';ctx.font='6px monospace';ctx.fillText('5MW',x0+w-22,limY-2);
+
+  // Load line
+  ctx.beginPath();ctx.strokeStyle='#f9e2af';ctx.lineWidth=1.5;
+  for(let i=0;i<n;i++){
+    const px=x0+8+(i/96)*pw;
+    const py=plotY+plotH-(loadHist[i]/mx)*plotH;
+    i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+  }ctx.stroke();
+
+  // DR reduction shading
+  if(drRedHist.length>0){
+    ctx.beginPath();ctx.globalAlpha=0.2;
+    for(let i=0;i<n;i++){
+      const px=x0+8+(i/96)*pw;
+      const py=plotY+plotH-(loadHist[i]/mx)*plotH;
+      i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+    }
+    for(let i=n-1;i>=0;i--){
+      const px=x0+8+(i/96)*pw;
+      const withDR=loadHist[i]+(drRedHist[i]||0);
+      const py=plotY+plotH-(withDR/mx)*plotH;
+      ctx.lineTo(px,py);
+    }
+    ctx.closePath();ctx.fillStyle='#51cf66';ctx.fill();ctx.globalAlpha=1;
+
+    // "Without DR" line
+    ctx.beginPath();ctx.strokeStyle='#51cf66';ctx.lineWidth=1;ctx.setLineDash([2,2]);
+    for(let i=0;i<n;i++){
+      const px=x0+8+(i/96)*pw;
+      const withDR=loadHist[i]+(drRedHist[i]||0);
+      const py=plotY+plotH-(withDR/mx)*plotH;
+      i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+    }ctx.stroke();ctx.setLineDash([]);
+  }
+
+  // Current value
+  if(n>0){
+    ctx.font='bold 8px monospace';ctx.textAlign='right';ctx.fillStyle='#f9e2af';
+    ctx.fillText(loadHist[n-1].toFixed(0)+' kW',x0+w-8,plotY+plotH-(loadHist[n-1]/mx)*plotH-3);
+  }
+
+  // Legend
+  ctx.font='6px sans-serif';ctx.textAlign='left';
+  const lx=x0+8,ly=y0+ht-6;
+  ctx.fillStyle='#f9e2af';ctx.fillRect(lx,ly-4,8,3);ctx.fillText('実負荷',lx+10,ly);
+  ctx.fillStyle='#51cf66';ctx.fillRect(lx+40,ly-4,8,3);ctx.fillText('DR削減分',lx+50,ly);
+
+  // Time labels
+  ctx.fillStyle='#444';ctx.font='6px monospace';ctx.textAlign='center';
+  for(let t=0;t<=24;t+=6){const tx=x0+8+(t/24)*pw;ctx.fillText(t+':00',tx,y0+ht+7)}
+}
+
+function drawTimeline(h){
+  const x0=220,y0=H-80,w=(W-520)/2-4,ht=65;
+  ctx.fillStyle='rgba(10,10,24,.92)';rr(x0,y0,w,ht,6);ctx.fill();
+  ctx.strokeStyle='#1e1e40';rr(x0,y0,w,ht,6);ctx.stroke();
+
+  ctx.fillStyle='#555580';ctx.font='8px sans-serif';ctx.textAlign='left';
+  ctx.fillText('OLTC・SVR・DR 協調タイムライン',x0+8,y0+12);
+
+  // Time axis
+  const tStart=0,tEnd=24;
+  const barY=y0+22, barH=10;
+
+  // OLTC bar
+  ctx.fillStyle='#f9e2af';ctx.globalAlpha=0.15;
+  ctx.fillRect(x0+8,barY,w-16,barH);ctx.globalAlpha=1;
+  ctx.fillStyle='#f9e2af';ctx.font='7px sans-serif';ctx.textAlign='right';
+  ctx.fillText('OLTC',x0+4,barY+8);
+
+  // SVR bar
+  ctx.fillStyle='#74c0fc';ctx.globalAlpha=0.15;
+  ctx.fillRect(x0+8,barY+14,w-16,barH);ctx.globalAlpha=1;
+  ctx.fillStyle='#74c0fc';ctx.font='7px sans-serif';
+  ctx.fillText('SVR',x0+4,barY+22);
+
+  // DR bar
+  ctx.fillStyle='#51cf66';ctx.globalAlpha=0.15;
+  ctx.fillRect(x0+8,barY+28,w-16,barH);ctx.globalAlpha=1;
+  ctx.fillStyle='#51cf66';ctx.font='7px sans-serif';
+  ctx.fillText('DR',x0+4,barY+36);
+
+  // Current time marker
+  const tPct=(h-tStart)/(tEnd-tStart);
+  const markerX=x0+8+tPct*(w-16);
+  ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.globalAlpha=0.5;
+  ctx.beginPath();ctx.moveTo(markerX,barY);ctx.lineTo(markerX,barY+38);ctx.stroke();
+  ctx.globalAlpha=1;
+
+  // Plot tap history
+  if(tapHist.length>1){
+    ctx.beginPath();ctx.strokeStyle='#f9e2af';ctx.lineWidth=1.5;
+    for(let i=0;i<tapHist.length;i++){
+      const px=x0+8+(i/96)*(w-16);
+      const py=barY+barH/2-(tapHist[i]-1.03)*barH*20; // scale
+      i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+    }ctx.stroke();
+  }
+
+  // Plot SVR history
+  if(svrHist.length>1){
+    ctx.beginPath();ctx.strokeStyle='#74c0fc';ctx.lineWidth=1.5;
+    for(let i=0;i<svrHist.length;i++){
+      const px=x0+8+(i/96)*(w-16);
+      const py=barY+14+barH/2-svrHist[i]*barH*10; // scale
+      i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+    }ctx.stroke();
+  }
+
+  // Time labels
+  ctx.fillStyle='#444';ctx.font='7px monospace';ctx.textAlign='center';
+  for(let t=0;t<=24;t+=4){
+    const tx=x0+8+(t/24)*(w-16);
+    ctx.fillText(t+':00',tx,y0+ht-3);
+  }
+}
+
+function drawVoltageProfile(){
+  const baseX=220,halfW=(W-520)/2-4;
+  const x0=baseX+halfW+8,y0=H-80,w=halfW,ht=65;
+  ctx.fillStyle='rgba(10,10,24,.92)';rr(x0,y0,w,ht,6);ctx.fill();
+  ctx.strokeStyle='#1e1e40';rr(x0,y0,w,ht,6);ctx.stroke();
+
+  ctx.fillStyle='#555580';ctx.font='8px sans-serif';ctx.textAlign='left';
+  ctx.fillText('電圧プロファイル (距離)',x0+8,y0+12);
+
+  const vMin=0.88,vMax=1.06;
+  // 0.95 limit
+  const limY=y0+ht-8-((V_MIN-vMin)/(vMax-vMin))*(ht-22);
+  ctx.beginPath();ctx.strokeStyle='rgba(255,107,107,.4)';ctx.setLineDash([3,3]);ctx.lineWidth=1;
+  ctx.moveTo(x0+8,limY);ctx.lineTo(x0+w-8,limY);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='#ff6b6b';ctx.font='6px monospace';ctx.fillText('0.95',x0+w-22,limY-2);
+
+  // 1.05 limit
+  const limY2=y0+ht-8-((V_MAX-vMin)/(vMax-vMin))*(ht-22);
+  ctx.beginPath();ctx.strokeStyle='rgba(255,107,107,.2)';ctx.setLineDash([3,3]);ctx.lineWidth=1;
+  ctx.moveTo(x0+8,limY2);ctx.lineTo(x0+w-8,limY2);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='#ff6b6b';ctx.font='6px monospace';ctx.fillText('1.05',x0+w-22,limY2-2);
+
+  // SVR position marker
+  const svrX=x0+8+(svr.poleIdx/30)*(w-16)*0.5;
+  ctx.beginPath();ctx.strokeStyle='rgba(116,192,252,.3)';ctx.lineWidth=1;ctx.setLineDash([2,2]);
+  ctx.moveTo(svrX,y0+18);ctx.lineTo(svrX,y0+ht-8);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='#74c0fc';ctx.font='6px sans-serif';ctx.textAlign='center';
+  ctx.fillText('SVR',svrX,y0+16);
+
+  for(let fi=0;fi<grid.feeders.length;fi++){
+    const f=grid.feeders[fi];
+    ctx.beginPath();ctx.strokeStyle=f.color;ctx.lineWidth=1.5;ctx.globalAlpha=0.8;
+    for(let i=0;i<f.trunk.length;i++){
+      const px=x0+8+(i/f.trunk.length)*(w-16)*(fi===0?0.5:0.5)+(fi===1?(w-16)*0.5:0);
+      const py=y0+ht-8-((f.trunk[i].voltage-vMin)/(vMax-vMin))*(ht-22);
+      i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+    }ctx.stroke();ctx.globalAlpha=1;
+
+    // Feeder label
+    const lx=x0+8+(fi===0?10:(w-16)*0.5+10);
+    ctx.fillStyle=f.color;ctx.font='7px sans-serif';ctx.textAlign='left';
+    ctx.fillText(f.id,lx,y0+ht-2);
+  }
+}
+
+// ── Update UI panels ──
+function updateUI(h,drInfo,pfResults){
+  // Clock
+  const hrs=Math.floor(h),mns=Math.floor((h-hrs)*60);
+  document.getElementById('clk').textContent=String(hrs).padStart(2,'0')+':'+String(mns).padStart(2,'0');
+
+  // OLTC
+  document.getElementById('oltc-tap').textContent=oltc.tap.toFixed(3)+' pu';
+  const oltcStateMap={standby:'待機',counting:'計時中 ('+oltc.delay+'/'+oltc.delayMax+')',stepping:'タップ動作!'};
+  document.getElementById('oltc-state').textContent=oltcStateMap[oltc.state]||oltc.state;
+  document.getElementById('oltc-state').style.color=oltc.state==='stepping'?'#fcc419':oltc.state==='counting'?'#ffa94d':'#51cf66';
+  document.getElementById('oltc-bar').style.width=((oltc.tap-oltc.tapMin)/(oltc.tapMax-oltc.tapMin)*100)+'%';
+
+  // SVR
+  document.getElementById('svr-comp').textContent=(svr.comp>=0?'+':'')+svr.comp.toFixed(3)+' pu';
+  document.getElementById('svr-vin').textContent=svr.vIn.toFixed(3)+' pu';
+  document.getElementById('svr-vin').style.color=voltC(svr.vIn);
+  document.getElementById('svr-vout').textContent=svr.vOut.toFixed(3)+' pu';
+  document.getElementById('svr-vout').style.color=voltC(svr.vOut);
+  const svrStateMap={standby:'待機',counting:'計時中 ('+svr.delay+'/'+svr.delayMax+')',stepping:'補償動作!'};
+  document.getElementById('svr-state').textContent=svrStateMap[svr.state]||svr.state;
+  document.getElementById('svr-state').style.color=svr.state==='stepping'?'#fcc419':svr.state==='counting'?'#ffa94d':'#51cf66';
+  document.getElementById('svr-bar').style.width=((svr.comp-svr.compMin)/(svr.compMax-svr.compMin)*100)+'%';
+
+  // DR
+  document.getElementById('dr-state').textContent=drActive?'ACTIVE':'待機';
+  document.getElementById('dr-state').style.color=drActive?'#51cf66':'#555580';
+  document.getElementById('dr-kw').textContent=drInfo.totalRed.toFixed(0)+' kW';
+  document.getElementById('dr-ev').textContent=drInfo.nEV+' 台';
+  document.getElementById('dr-bt').textContent=drInfo.nBatt+' 台';
+  document.getElementById('dr-ac').textContent=drInfo.nAC+' 台';
+  const pct=drInfo.totalRed/(pfResults[0].totalLoad+drInfo.totalRed+1)*100;
+  document.getElementById('dr-pct').textContent=pct.toFixed(1)+'%';
+  document.getElementById('dr-bar').style.width=Math.min(100,pct*2)+'%';
+
+  // System voltage summary
+  const allVoltages=[];let totalViols=0;
+  for(const f of grid.feeders)for(const p of f.allPoles){allVoltages.push(p.voltage);if(p.voltage<V_MIN)totalViols++}
+  const sysVmin=Math.min(...allVoltages),sysVmax=Math.max(...allVoltages);
+  const sysVavg=allVoltages.reduce((s,v)=>s+v,0)/allVoltages.length;
+  const totalLoad=pfResults.reduce((s,r)=>s+r.totalLoad,0);
+  const utilPct=totalLoad/S_BASE*100;
+  document.getElementById('sys-vmin').textContent=sysVmin.toFixed(3)+' pu';
+  document.getElementById('sys-vmin').style.color=voltC(sysVmin);
+  document.getElementById('sys-vavg').textContent=sysVavg.toFixed(3)+' pu';
+  document.getElementById('sys-vavg').style.color=voltC(sysVavg);
+  document.getElementById('sys-vmax').textContent=sysVmax.toFixed(3)+' pu';
+  document.getElementById('sys-viols').textContent=totalViols+' 柱';
+  document.getElementById('sys-viols').style.color=totalViols>0?'#ff6b6b':'#51cf66';
+  document.getElementById('sys-load').textContent=totalLoad.toFixed(0)+' kW';
+  document.getElementById('sys-util').textContent=utilPct.toFixed(1)+'%';
+  document.getElementById('sys-util').style.color=utilPct>85?'#ff6b6b':utilPct>70?'#fcc419':'#51cf66';
+  document.getElementById('sys-bar').style.width=Math.min(100,utilPct)+'%';
+  document.getElementById('sys-bar').style.background=utilPct>85?'#ff6b6b':utilPct>70?'#fcc419':'#51cf66';
+
+  // House detail
+  document.getElementById('pv-val').textContent=house.pvGen.toFixed(1)+' kW';
+  document.getElementById('pv-fill').style.width=(house.pvGen/house.pvCap*100)+'%';
+
+  document.getElementById('ev-val').textContent=house.evCharging.toFixed(1)+' kW';
+  document.getElementById('ev-fill').style.width=(house.evCharging/house.evPow*100)+'%';
+  document.getElementById('ev-soc').textContent=house.evSOC.toFixed(0)+'%';
+  document.getElementById('ev-dr').textContent=house.drActive&&house.evCharging>0?'遅延充電に切替':'—';
+  document.getElementById('ev-dr').style.color=house.drActive&&house.evCharging>0?'#fcc419':'#555580';
+
+  document.getElementById('bat-val').textContent=(house.battPow>=0?'+':'')+house.battPow.toFixed(1)+' kW';
+  document.getElementById('bat-fill').style.width=(house.battSOC)+'%';
+  document.getElementById('bat-soc').textContent=house.battSOC.toFixed(0)+'%';
+  document.getElementById('bat-dr').textContent=house.drActive&&house.battPow<0?'V2H放電中':'—';
+  document.getElementById('bat-dr').style.color=house.drActive&&house.battPow<0?'#fcc419':'#555580';
+
+  document.getElementById('ac-val').textContent=house.acLoad.toFixed(1)+' kW';
+  document.getElementById('ac-fill').style.width=(house.acLoad/house.acPow*100)+'%';
+  document.getElementById('ac-temp').textContent=house.acTempDR+'℃';
+  document.getElementById('ac-dr').textContent=house.drActive?'設定+2℃ (28℃)':'—';
+  document.getElementById('ac-dr').style.color=house.drActive?'#fcc419':'#555580';
+
+  document.getElementById('h-load').textContent=house.totalLoad.toFixed(1)+' kW';
+  document.getElementById('h-gen').textContent=house.totalGen.toFixed(1)+' kW';
+  document.getElementById('h-net').textContent=house.netLoad.toFixed(1)+' kW';
+
+  // House voltage (end-of-feeder approximation)
+  const endPole=grid.feeders[0].trunk[grid.feeders[0].trunk.length-1];
+  house.voltage=endPole?endPole.voltage:1.0;
+  document.getElementById('h-volt').textContent=house.voltage.toFixed(3)+' pu';
+  document.getElementById('h-volt').style.color=voltC(house.voltage);
+
+  // DR signal arrow in house SVG
+  document.getElementById('dr-signal').setAttribute('opacity',house.drActive?'1':'0');
+
+  // Device card highlights
+  document.getElementById('dc-ev').className='dev-card'+(house.drActive&&house.evCharging>0?' dr-active':'');
+  document.getElementById('dc-bat').className='dev-card'+(house.drActive&&house.battPow<0?' dr-active':'');
+  document.getElementById('dc-ac').className='dev-card'+(house.drActive?' dr-active':'');
+
+  // EV box in SVG
+  document.getElementById('dev-ev-box').setAttribute('stroke',house.drActive&&house.evCharging>0?'#fcc419':'#ffa94d');
+  document.getElementById('dev-ev-txt').textContent=house.evCharging>0.1?house.evCharging.toFixed(1)+'kW':'待機';
+  document.getElementById('dev-bat-box').setAttribute('stroke',house.drActive&&house.battPow<0?'#fcc419':'#51cf66');
+  document.getElementById('dev-bat-txt').textContent=house.battPow<0?'放電'+(-house.battPow).toFixed(1)+'kW':house.battPow>0?'充電'+house.battPow.toFixed(1)+'kW':'待機';
+  document.getElementById('dev-ac-box').setAttribute('stroke',house.drActive?'#fcc419':'#74c0fc');
+  document.getElementById('dev-ac-txt').textContent=house.acLoad>0.1?house.acLoad.toFixed(1)+'kW '+house.acTempDR+'℃':'OFF';
+
+  // Data Space flow steps
+  updateDSSteps(h);
+}
+
+function updateDSSteps(h){
+  const steps=[
+    {id:'ds1',at:12}, {id:'ds2',at:12.5}, {id:'ds3',at:13},
+    {id:'ds4',at:13.5}, {id:'ds5',at:13.8}, {id:'ds6',at:14},
+    {id:'ds7',at:14.2}, {id:'ds8',at:18.5}, {id:'ds9',at:19},
+    {id:'ds10',at:19.5}
+  ];
+  for(const s of steps){
+    const el=document.getElementById(s.id);
+    if(h>=s.at+0.5) el.className='ds-step done';
+    else if(h>=s.at) el.className='ds-step active';
+    else el.className='ds-step';
+  }
+}
+
+// ── Simulation Loop ──
+let step=0,running=false,lastT=0,acc=0;
+const SPEED=90,STEPS=96;
+
+function tick(ts){
+  if(!running)return;
+  if(!lastT)lastT=ts;
+  acc+=ts-lastT;lastT=ts;
+
+  while(acc>=SPEED&&step<STEPS){
+    acc-=SPEED;
+    const h=step*0.25;
+
+    computeLoads(h);
+
+    // DR activation
+    if(h>=14&&h<19) drActive=true;
+    else drActive=false;
+    house.drActive=drActive;
+
+    let drInfo=applyDR(h);
+    if(!drActive){for(const f of grid.feeders)for(const p of f.allPoles)for(const hh of p.houses){hh.drReduce=0}}
+
+    // Power flow
+    const pfResults=[];
+    for(const f of grid.feeders) pfResults.push(powerFlow(f));
+
+    // OLTC and SVR controllers
+    const minV=Math.min(...pfResults.map(r=>r.minV));
+    const maxV=Math.max(...grid.feeders.flatMap(f=>f.trunk.slice(0,3).map(p=>p.voltage)));
+    updateOLTC(minV,maxV,pfResults[0].totalLoad);
+    updateSVR();
+
+    // History — collect all pole voltages for min/max/avg
+    const allV=[];
+    for(const f of grid.feeders)for(const p of f.allPoles)allV.push(p.voltage);
+    const vAvg=allV.reduce((s,v)=>s+v,0)/allV.length;
+    const vMax2=Math.max(...allV);
+    tapHist.push(oltc.tap);
+    svrHist.push(svr.comp);
+    vMinHist.push(minV);
+    vMaxHist.push(vMax2);
+    vAvgHist.push(vAvg);
+    loadHist.push(pfResults.reduce((s,r)=>s+r.totalLoad,0));
+    drRedHist.push(drInfo.totalRed);
+
+    updateUI(h,drInfo,pfResults);
+    step++;
+  }
+
+  if(step>=STEPS){
+    setTimeout(()=>{
+      step=0;lastT=0;acc=0;drActive=false;
+      tapHist.length=0;svrHist.length=0;vMinHist.length=0;vMaxHist.length=0;vAvgHist.length=0;loadHist.length=0;drRedHist.length=0;
+      oltc.tap=1.03;oltc.state='standby';oltc.delay=0;
+      svr.comp=0;svr.state='standby';svr.delay=0;
+      house.evSOC=45;house.battSOC=60;house.drActive=false;
+      requestAnimationFrame(tick);
+    },3000);
+    drawScene(24);
+    return;
+  }
+
+  drawScene(step*0.25);
+  requestAnimationFrame(tick);
+}
+
+function go(){
+  document.getElementById('start').classList.add('hidden');
+  document.getElementById('ui').classList.remove('hidden');
+  buildGrid();
+  resize();
+  running=true;
+  requestAnimationFrame(tick);
+}
+</script>
+</body>
+</html>

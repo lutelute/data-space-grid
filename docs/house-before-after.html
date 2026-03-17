@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>1軒の家 × Data Space — Before / After</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#060610;color:#c8cce8;font-family:'Helvetica Neue','Hiragino Kaku Gothic ProN',sans-serif;padding:16px 20px}
+.wrap{max-width:1200px;margin:0 auto}
+h1{font-size:1.2rem;color:#eef;font-weight:800;text-align:center}
+.sub{font-size:.72rem;color:#555580;text-align:center;margin-bottom:10px}
+
+/* Steps */
+.steps{display:flex;gap:0;margin:8px 0;justify-content:center}
+.stp{flex:0 0 auto;text-align:center;padding:4px 12px;cursor:pointer;border-bottom:3px solid transparent;transition:all .2s;font-size:.72rem;color:#555580}
+.stp:hover{color:#aaa}
+.stp.on{color:#00c8ff;border-color:#00c8ff;font-weight:700}
+.stp.done{color:#51cf66;border-color:#51cf66}
+.stp .sn{font-size:.6rem;display:block}
+
+/* Nav */
+.nav-bar{display:flex;align-items:center;gap:10px;justify-content:center;margin:8px 0}
+.nav-bar button{background:#10102a;border:1px solid #1e1e40;color:#c8cce8;padding:6px 18px;border-radius:6px;cursor:pointer;font-size:.78rem;font-weight:600}
+.nav-bar button:hover{border-color:#00c8ff;color:#00c8ff}
+.nav-bar button.primary{background:#00c8ff;color:#060610;border-color:#00c8ff}
+.nav-bar .label{font-size:.8rem;color:#eef;font-weight:700;flex:1;text-align:center}
+
+/* 2-col */
+.row{display:flex;gap:14px;margin:8px 0;align-items:stretch}
+.col-house{flex:1;min-width:0}
+.col-chart{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px}
+
+/* House */
+.house{background:#08081a;border:2px solid #1e1e40;border-radius:12px;padding:12px;transition:border-color .4s}
+.roof{display:flex;align-items:center;gap:8px;padding:6px 10px;background:#0c0c1a;border-radius:8px 8px 0 0;margin:-12px -12px 8px;border-bottom:1px solid #1e1e40}
+.devs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.dev{text-align:center;padding:6px 4px;border-radius:8px;border:1.5px solid #1e1e40;background:#0a0a14;transition:all .4s}
+.dev .ic{font-size:1.3rem}
+.dev .nm{font-size:.68rem;font-weight:700;margin:2px 0}
+.dev .vl{font-size:.9rem;font-weight:800;font-family:'SF Mono',monospace;transition:color .4s}
+.dev .sb{font-size:.58rem;color:#555580}
+.dev .badge{display:inline-block;font-size:.52rem;font-weight:700;padding:1px 6px;border-radius:3px;margin-top:2px}
+
+/* Power bar */
+.pwr-row{display:flex;gap:6px;margin:6px 0}
+.pwr-item{flex:1;text-align:center;padding:6px;border-radius:6px;background:#0a0a14;border:1px solid #1e1e40}
+.pwr-item .n{font-size:1.1rem;font-weight:900;font-family:'SF Mono',monospace}
+.pwr-item .l{font-size:.55rem;color:#555580;margin-top:1px}
+
+/* DS status */
+.ds-bar{display:flex;gap:4px;flex-wrap:wrap;margin:6px 0}
+.ds-pill{padding:3px 8px;border-radius:4px;font-size:.6rem;font-weight:700;border:1px solid;transition:all .4s}
+
+/* Explanation */
+.explain{background:#10102a;border:1px solid #1e1e40;border-radius:10px;padding:10px 14px;margin:6px 0;font-size:.75rem;line-height:1.7;min-height:60px}
+
+/* Chart containers */
+.chart-box{background:#10102a;border:1px solid #1e1e40;border-radius:10px;padding:10px}
+.chart-box canvas{display:block}
+
+/* Horizontal bar chart (pure CSS) */
+.hbar{margin:6px 0}
+.hbar-row{display:flex;align-items:center;gap:6px;margin:5px 0}
+.hbar-label{width:56px;text-align:right;font-size:.7rem;font-weight:700;flex-shrink:0}
+.hbar-track{flex:1;height:20px;background:#1a1a30;border-radius:4px;position:relative;overflow:visible}
+.hbar-before{position:absolute;top:2px;left:0;height:7px;border-radius:3px;opacity:.5;transition:width .4s}
+.hbar-now{position:absolute;bottom:2px;left:0;height:7px;border-radius:3px;transition:width .4s}
+.hbar-val{position:absolute;right:-44px;top:50%;transform:translateY(-50%);font-size:.65rem;font-weight:700;font-family:'SF Mono',monospace;white-space:nowrap}
+.hbar-scale{display:flex;justify-content:space-between;font-size:.55rem;color:#444;margin-top:2px;padding:0 56px 0 62px}
+.hbar-legend{display:flex;gap:12px;justify-content:center;margin-top:4px;font-size:.6rem}
+.hbar-legend span{display:flex;align-items:center;gap:3px}
+.hbar-legend i{width:10px;height:6px;border-radius:2px;display:inline-block}
+.chart-box .ct{font-size:.72rem;font-weight:700;color:#888;text-align:center;margin-bottom:4px}
+
+/* Process flow */
+.flow{display:flex;gap:0;margin:6px 0}
+.flow-node{flex:1;text-align:center;padding:6px 4px;border:1px solid #1e1e40;background:#0a0a14;transition:all .4s;position:relative}
+.flow-node:first-child{border-radius:8px 0 0 8px}
+.flow-node:last-child{border-radius:0 8px 8px 0}
+.flow-node .fi{font-size:1.1rem}
+.flow-node .fn{font-size:.65rem;font-weight:700}
+.flow-node .fd{font-size:.55rem;color:#555580}
+.flow-node.active{background:#00c8ff08;border-color:#00c8ff66;z-index:1}
+.flow-node.active .fn{color:#00c8ff}
+.flow-node.done{background:#51cf6606;border-color:#51cf6644}
+.flow-node.done .fn{color:#51cf66}
+.flow-arr{position:absolute;right:-6px;top:50%;transform:translateY(-50%);font-size:.7rem;z-index:2}
+
+/* ── Interactive flow (ported from process-viz) ── */
+.hflow{background:#08081a;border:1px solid #1e1e40;border-radius:12px;padding:14px;min-height:120px}
+.hflow .scene-title{font-size:.9rem;font-weight:800;color:#eef;margin-bottom:10px;text-align:center}
+.actor{display:inline-flex;flex-direction:column;align-items:center;gap:2px;padding:8px 12px;border-radius:10px;background:#10102a;border:2px solid #1e1e40;min-width:80px;z-index:2}
+.actor .a-icon{font-size:1.6rem;line-height:1}
+.actor .a-name{font-size:.72rem;font-weight:700}
+.actor .a-sub{font-size:.58rem;color:#555580}
+.actor.glow{box-shadow:0 0 16px var(--gc,#00c8ff33);border-color:var(--gc,#00c8ff)}
+.actor.pulse{animation:aPulse 1.5s ease-in-out infinite}
+@keyframes aPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+@keyframes flowMove{0%{left:-10px}100%{left:calc(100% - 10px)}}
+.flow-row{display:flex;align-items:center;justify-content:center;gap:0;margin:10px 0;padding:6px 0}
+.gate-row{display:flex;gap:6px;justify-content:center;margin:10px 0}
+.gate{flex:1;max-width:160px;border-radius:8px;padding:10px;text-align:center;position:relative;overflow:hidden}
+.gate::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.gate .g-icon{font-size:1.3rem}
+.gate .g-name{font-size:.75rem;font-weight:800;margin:3px 0}
+.gate .g-desc{font-size:.62rem;color:#999}
+.gate .g-result{font-size:.7rem;font-weight:800;margin-top:4px}
+.gate.pass{background:#51cf6608;border:1.5px solid #51cf6644}.gate.pass::before{background:#51cf66}
+.gate.fail{background:#ff6b6b08;border:1.5px solid #ff6b6b44}.gate.fail::before{background:#ff6b6b}
+.tl{display:flex;align-items:flex-start;margin:10px 0;position:relative}
+.tl::before{content:'';position:absolute;top:20px;left:30px;right:30px;height:3px;background:#1e1e40;z-index:0}
+.tl-node{flex:1;text-align:center;position:relative;z-index:1}
+.tl-node .tl-dot{width:14px;height:14px;border-radius:50%;margin:12px auto 4px;border:2px solid}
+.tl-node .tl-time{font-size:.68rem;font-weight:800}
+.tl-node .tl-lbl{font-size:.6rem;color:#999;margin-top:2px}
+.tl-node .tl-icon{font-size:1.1rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>1軒の家 × Data Space — ステップ・バイ・ステップ</h1>
+<div class="sub">H-0042: フィーダー末端 | PV + EV + 蓄電池 + AC | 夏季ピーク 17:00</div>
+
+<!-- Step indicators -->
+<div class="steps" id="step-bar"></div>
+
+<!-- Nav -->
+<div class="nav-bar">
+  <button onclick="prev()">← 戻る</button>
+  <div class="label" id="step-title">—</div>
+  <button class="primary" onclick="next()">次へ →</button>
+</div>
+
+<!-- Main content: House + Charts -->
+<div class="row">
+  <div class="col-house">
+    <!-- House SVG diagram -->
+    <svg id="house-svg" viewBox="0 0 520 260" style="width:100%;height:auto;display:block;margin:4px 0">
+      <!-- Sky / DS Cloud -->
+      <rect x="120" y="0" width="280" height="28" rx="14" fill="#00c8ff08" stroke="#00c8ff44" stroke-width="1"/>
+      <text x="260" y="18" text-anchor="middle" fill="#00c8ff" font-size="10" font-weight="bold">☁ Data Space</text>
+      <!-- DS→HEMS connection -->
+      <line id="svg-ds-line" x1="260" y1="28" x2="260" y2="68" stroke="#1e1e40" stroke-width="1.5" stroke-dasharray="4,4"/>
+      <text id="svg-ds-label" x="270" y="50" fill="#00c8ff" font-size="7" opacity="0"></text>
+
+      <!-- Roof -->
+      <polygon points="50,80 260,38 470,80" fill="#0c0c1a" stroke="#2a2a50" stroke-width="1.5"/>
+      <!-- PV panels -->
+      <rect x="180" y="48" width="160" height="20" rx="3" fill="#51cf6610" stroke="#51cf66" stroke-width="1"/>
+      <text x="260" y="62" text-anchor="middle" fill="#51cf66" font-size="9" font-weight="bold">☀ PV <tspan id="svg-pv">1.8</tspan> kW</text>
+
+      <!-- Walls -->
+      <rect x="50" y="80" width="420" height="170" rx="0" fill="#08081a" stroke="#2a2a50" stroke-width="1.5"/>
+
+      <!-- Grid connection (left) -->
+      <line x1="0" y1="130" x2="50" y2="130" stroke="#f9e2af" stroke-width="3"/>
+      <rect x="50" y="118" width="24" height="24" rx="3" fill="#10102a" stroke="#f9e2af" stroke-width="1.5"/>
+      <text x="62" y="132" text-anchor="middle" fill="#f9e2af" font-size="6">メータ</text>
+      <text x="10" y="122" fill="#f9e2af" font-size="8" font-weight="bold">⚡系統</text>
+      <text id="svg-volt" x="10" y="145" fill="#ff6b6b" font-size="9" font-weight="bold">0.938pu</text>
+
+      <!-- HEMS -->
+      <rect x="220" y="88" width="80" height="32" rx="6" fill="#0a1a2a" stroke="#00c8ff" stroke-width="2"/>
+      <text x="260" y="104" text-anchor="middle" fill="#00c8ff" font-size="10" font-weight="bold">🖥 HEMS</text>
+      <text x="260" y="115" text-anchor="middle" fill="#555580" font-size="6">Wi-SUN</text>
+
+      <!-- Bus line -->
+      <line x1="90" y1="150" x2="450" y2="150" stroke="#333" stroke-width="1" stroke-dasharray="3,3"/>
+      <line x1="260" y1="120" x2="260" y2="150" stroke="#00c8ff" stroke-width="1.5"/>
+
+      <!-- DR signal arrow (hidden by default) -->
+      <g id="svg-dr-signal" opacity="0">
+        <line x1="300" y1="28" x2="300" y2="88" stroke="#fcc419" stroke-width="2"/>
+        <polygon points="296,84 300,92 304,84" fill="#fcc419"/>
+        <text x="310" y="60" fill="#fcc419" font-size="7" font-weight="bold">⚡DR信号</text>
+      </g>
+
+      <!-- EV -->
+      <g id="svg-ev">
+        <line x1="110" y1="150" x2="110" y2="165" stroke="#ffa94d66" stroke-width="1"/>
+        <rect x="70" y="165" width="80" height="70" rx="6" id="svg-ev-box" fill="#0a0a14" stroke="#ffa94d" stroke-width="1.5"/>
+        <text x="110" y="183" text-anchor="middle" font-size="18">🚗</text>
+        <text x="110" y="198" text-anchor="middle" fill="#ffa94d" font-size="8" font-weight="bold">EV充電</text>
+        <text id="svg-ev-val" x="110" y="210" text-anchor="middle" fill="#ffa94d" font-size="10" font-weight="bold">6.0 kW</text>
+        <text id="svg-ev-sub" x="110" y="222" text-anchor="middle" fill="#555580" font-size="6">SOC 45%</text>
+        <rect id="svg-ev-badge" x="80" y="157" width="60" height="11" rx="3" fill="#ffa94d18" stroke="none"/>
+        <text id="svg-ev-badge-t" x="110" y="165" text-anchor="middle" font-size="6" font-weight="bold" fill="#ffa94d">—</text>
+      </g>
+
+      <!-- Battery -->
+      <g id="svg-bat">
+        <line x1="220" y1="150" x2="220" y2="165" stroke="#51cf6666" stroke-width="1"/>
+        <rect x="180" y="165" width="80" height="70" rx="6" id="svg-bat-box" fill="#0a0a14" stroke="#51cf66" stroke-width="1.5"/>
+        <text x="220" y="183" text-anchor="middle" font-size="18">🔋</text>
+        <text x="220" y="198" text-anchor="middle" fill="#51cf66" font-size="8" font-weight="bold">蓄電池</text>
+        <text id="svg-bat-val" x="220" y="210" text-anchor="middle" fill="#555580" font-size="10" font-weight="bold">待機</text>
+        <text id="svg-bat-sub" x="220" y="222" text-anchor="middle" fill="#555580" font-size="6">SOC 60%</text>
+        <rect id="svg-bat-badge" x="190" y="157" width="60" height="11" rx="3" fill="#51cf6618" stroke="none"/>
+        <text id="svg-bat-badge-t" x="220" y="165" text-anchor="middle" font-size="6" font-weight="bold" fill="#51cf66">—</text>
+      </g>
+
+      <!-- AC -->
+      <g id="svg-ac">
+        <line x1="330" y1="150" x2="330" y2="165" stroke="#74c0fc66" stroke-width="1"/>
+        <rect x="290" y="165" width="80" height="70" rx="6" id="svg-ac-box" fill="#0a0a14" stroke="#74c0fc" stroke-width="1.5"/>
+        <text x="330" y="183" text-anchor="middle" font-size="18">❄️</text>
+        <text x="330" y="198" text-anchor="middle" fill="#74c0fc" font-size="8" font-weight="bold">エアコン</text>
+        <text id="svg-ac-val" x="330" y="210" text-anchor="middle" fill="#74c0fc" font-size="10" font-weight="bold">2.2 kW</text>
+        <text id="svg-ac-sub" x="330" y="222" text-anchor="middle" fill="#555580" font-size="6">26℃</text>
+        <rect id="svg-ac-badge" x="300" y="157" width="60" height="11" rx="3" fill="#74c0fc18" stroke="none"/>
+        <text id="svg-ac-badge-t" x="330" y="165" text-anchor="middle" font-size="6" font-weight="bold" fill="#74c0fc">—</text>
+      </g>
+
+      <!-- Base -->
+      <g>
+        <line x1="430" y1="150" x2="430" y2="165" stroke="#55558066" stroke-width="1"/>
+        <rect x="395" y="165" width="70" height="70" rx="6" fill="#0a0a14" stroke="#555580" stroke-width="1"/>
+        <text x="430" y="183" text-anchor="middle" font-size="18">💡</text>
+        <text x="430" y="198" text-anchor="middle" fill="#555580" font-size="8" font-weight="bold">ベース</text>
+        <text x="430" y="210" text-anchor="middle" fill="#555580" font-size="9">1.2 kW</text>
+      </g>
+    </svg>
+    <!-- Power -->
+    <div class="pwr-row">
+      <div class="pwr-item"><div class="n" id="pw-load">9.4</div><div class="l">kW 消費</div></div>
+      <div class="pwr-item"><div class="n" id="pw-gen">1.8</div><div class="l">kW 発電</div></div>
+      <div class="pwr-item"><div class="n" id="pw-net">7.6</div><div class="l">kW 買電</div></div>
+      <div class="pwr-item"><div class="n" id="pw-volt">0.938</div><div class="l">pu 電圧</div></div>
+    </div>
+    <!-- DS pills -->
+    <div class="ds-bar" id="ds-bar"></div>
+  </div>
+
+  <div class="col-chart">
+    <div class="chart-box"><div class="ct">機器別電力 Before vs Now</div><div id="ch1"></div></div>
+    <div class="chart-box"><div class="ct">24h 末端電圧</div><canvas id="ch2" width="480" height="150"></canvas></div>
+  </div>
+</div>
+
+<!-- Interactive flow (from process-viz) -->
+<div id="house-flow" style="margin:8px 0"></div>
+
+<!-- Process flow bar -->
+<div class="flow" id="flow-bar"></div>
+
+</div><!-- .wrap -->
+
+<script>
+// No external libraries — pure HTML bars + Canvas
+
+// ══════════════════════════════════════
+// Step data
+// ══════════════════════════════════════
+const S=[
+  {id:'before',title:'BEFORE — Data Space なし',
+   ev:6.0,bat:0,ac:2.2,base:1.2,pv:1.8,volt:0.938,evSOC:45,batSOC:60,acT:26,
+   evBg:{t:'制御不可',c:'#ff6b6b'},batBg:{t:'未活用',c:'#555580'},acBg:{t:'制御不可',c:'#ff6b6b'},
+   ds:{同意:'なし',契約:'なし',認証:'なし',ポリシー:'なし',監査:'なし',匿名化:'なし'},
+   flow:-1,
+   explain:`<div style="color:#ff6b6b;font-weight:700;font-size:.85rem;margin-bottom:6px">問題: 全員が孤立している</div>
+<div style="display:flex;gap:10px">
+  <div style="flex:1"><strong>需要家</strong><br>・EV 6kW フル充電中（制御手段なし）<br>・蓄電池 60% あるが待機のまま<br>・系統が混雑していることを知らない</div>
+  <div style="flex:1"><strong>DSO</strong><br>・末端電圧 0.938pu（<span style="color:#ff6b6b">規定下限 0.95 以下</span>）<br>・個別世帯の負荷内訳が見えない<br>・OLTC タップ上げだけでは不足</div>
+  <div style="flex:1"><strong>Aggregator</strong><br>・どの家にどれだけ柔軟性があるか不明<br>・DR参加の契約基盤がない<br>・需要家との信頼関係が構築できない</div>
+</div>`},
+  {id:'consent',title:'① 需要家が同意を設定',
+   ev:6.0,bat:0,ac:2.2,base:1.2,pv:1.8,volt:0.938,evSOC:45,batSOC:60,acT:26,
+   evBg:{t:'✓ 同意済',c:'#51cf66'},batBg:{t:'✓ 同意済',c:'#51cf66'},acBg:{t:'条件付+2℃',c:'#fcc419'},
+   ds:{同意:'設定済',契約:'なし',認証:'なし',ポリシー:'なし',監査:'1件',匿名化:'なし'},
+   flow:0,
+   explain:`<div style="font-weight:700;font-size:.85rem;margin-bottom:6px">HEMS 同意ダッシュボード</div>
+<table style="width:100%;font-size:.72rem;border-collapse:collapse">
+<tr style="border-bottom:1px solid #1e1e40"><td style="padding:3px 0">電力使用量 (30分値)</td><td style="color:#51cf66;text-align:right;font-weight:700">✓ 許可 — dr_dispatch, billing</td></tr>
+<tr style="border-bottom:1px solid #1e1e40"><td style="padding:3px 0">EV充電スケジュール</td><td style="color:#51cf66;text-align:right;font-weight:700">✓ 許可 — dr_dispatch</td></tr>
+<tr style="border-bottom:1px solid #1e1e40"><td style="padding:3px 0">蓄電池 SOC</td><td style="color:#51cf66;text-align:right;font-weight:700">✓ 許可 — dr_dispatch</td></tr>
+<tr style="border-bottom:1px solid #1e1e40"><td style="padding:3px 0">室温・AC設定</td><td style="color:#fcc419;text-align:right;font-weight:700">⚠ 条件付 — DR時のみ +2℃上限</td></tr>
+<tr style="border-bottom:1px solid #1e1e40"><td style="padding:3px 0">在宅/不在パターン</td><td style="color:#ff6b6b;text-align:right;font-weight:700">✗ 拒否</td></tr>
+<tr><td style="padding:3px 0">統計研究用データ</td><td style="color:#ff6b6b;text-align:right;font-weight:700">✗ 拒否</td></tr>
+</table>
+<div style="margin-top:6px;font-size:.68rem;color:#00c8ff">→ ConsentRecord (暗号署名付き) を Data Space に登録。Agg/DSO は同意の「有無」と「範囲」のみ参照可能。生データは見えない。</div>`},
+  {id:'contract',title:'② Agg から契約が到着',
+   ev:6.0,bat:0,ac:2.2,base:1.2,pv:1.8,volt:0.938,evSOC:45,batSOC:60,acT:26,
+   evBg:{t:'✓ 同意済',c:'#51cf66'},batBg:{t:'✓ 同意済',c:'#51cf66'},acBg:{t:'条件付+2℃',c:'#fcc419'},
+   ds:{同意:'設定済',契約:'ACTIVE',認証:'mTLS✓',ポリシー:'なし',監査:'2件',匿名化:'なし'},
+   flow:1,
+   explain:`<div style="font-weight:700;font-size:.85rem;margin-bottom:6px">契約交渉の信号フロー</div>
+<div style="display:flex;align-items:center;gap:4px;font-size:.72rem;flex-wrap:wrap;margin-bottom:8px">
+  <span style="background:#74c0fc18;color:#74c0fc;padding:2px 8px;border-radius:4px;font-weight:700">🔋 Agg</span>
+  <span style="color:#555580">→ 契約オファー送信 →</span>
+  <span style="background:#00c8ff18;color:#00c8ff;padding:2px 8px;border-radius:4px;font-weight:700">☁ DS: mTLS検証✓</span>
+  <span style="color:#555580">→ OIDC検証✓ →</span>
+  <span style="background:#00c8ff18;color:#00c8ff;padding:2px 8px;border-radius:4px;font-weight:700">☁ DS: 目的照合✓</span>
+  <span style="color:#555580">→ 転送 →</span>
+  <span style="background:#ffa94d18;color:#ffa94d;padding:2px 8px;border-radius:4px;font-weight:700">🖥 HEMS</span>
+  <span style="color:#555580">→ 承認画面 →</span>
+  <span style="background:#51cf6618;color:#51cf66;padding:2px 8px;border-radius:4px;font-weight:700">👤 需要家「承認」</span>
+</div>
+<table style="width:100%;font-size:.7rem;border-collapse:collapse">
+<tr style="border-bottom:1px solid #1e1e40"><td style="padding:2px 0;color:#555580">送信元</td><td style="color:#74c0fc">GreenFlex Inc. (Aggregator)</td></tr>
+<tr style="border-bottom:1px solid #1e1e40"><td style="padding:2px 0;color:#555580">目的</td><td>voltage_regulation (電圧制御)</td></tr>
+<tr style="border-bottom:1px solid #1e1e40"><td style="padding:2px 0;color:#555580">対象機器</td><td>EV充電器, 蓄電池, AC</td></tr>
+<tr style="border-bottom:1px solid #1e1e40"><td style="padding:2px 0;color:#555580">制約</td><td>AC +2℃上限, EV最低1.2kW, SOC下限20%</td></tr>
+<tr style="border-bottom:1px solid #1e1e40"><td style="padding:2px 0;color:#555580">報酬</td><td style="color:#51cf66">¥15/kWh 削減量</td></tr>
+<tr style="border-bottom:1px solid #1e1e40"><td style="padding:2px 0;color:#555580">期間</td><td>14:00〜19:00</td></tr>
+<tr><td style="padding:2px 0;color:#555580">データ保持</td><td>30日後に自動削除</td></tr>
+</table>
+<div style="margin-top:4px;font-size:.68rem;color:#51cf66;font-weight:700">→ 契約ステータス: OFFERED → NEGOTIATING → ACTIVE</div>`},
+  {id:'policy',title:'③ DR 信号 → ポリシー検証',
+   ev:6.0,bat:0,ac:2.2,base:1.2,pv:1.8,volt:0.938,evSOC:45,batSOC:60,acT:26,
+   evBg:{t:'✓ 同意済',c:'#51cf66'},batBg:{t:'✓ 同意済',c:'#51cf66'},acBg:{t:'条件付+2℃',c:'#fcc419'},
+   ds:{同意:'確認済',契約:'ACTIVE',認証:'PASS',ポリシー:'4段PASS',監査:'3件',匿名化:'なし'},
+   flow:2,
+   explain:`<div style="font-weight:700;font-size:.85rem;margin-bottom:6px">ポリシーエンジン: 4段ゲート検証</div>
+<div style="display:flex;gap:6px;margin-bottom:8px">
+  <div style="flex:1;background:#51cf6608;border:1px solid #51cf6644;border-radius:6px;padding:6px;text-align:center;border-top:3px solid #51cf66">
+    <div style="font-size:1rem">🔐</div>
+    <div style="font-size:.7rem;font-weight:700;color:#51cf66">Gate 1: 認証</div>
+    <div style="font-size:.62rem;color:#999">mTLS証明書 CA検証<br>JWTトークン有効期限内</div>
+    <div style="font-size:.68rem;color:#51cf66;font-weight:700;margin-top:2px">✓ PASS</div>
+  </div>
+  <div style="align-self:center;color:#51cf66">→</div>
+  <div style="flex:1;background:#51cf6608;border:1px solid #51cf6644;border-radius:6px;padding:6px;text-align:center;border-top:3px solid #51cf66">
+    <div style="font-size:1rem">📝</div>
+    <div style="font-size:.7rem;font-weight:700;color:#51cf66">Gate 2: 契約</div>
+    <div style="font-size:.62rem;color:#999">ACTIVE契約の存在<br>有効期限内を確認</div>
+    <div style="font-size:.68rem;color:#51cf66;font-weight:700;margin-top:2px">✓ PASS</div>
+  </div>
+  <div style="align-self:center;color:#51cf66">→</div>
+  <div style="flex:1;background:#51cf6608;border:1px solid #51cf6644;border-radius:6px;padding:6px;text-align:center;border-top:3px solid #51cf66">
+    <div style="font-size:1rem">🎯</div>
+    <div style="font-size:.7rem;font-weight:700;color:#51cf66">Gate 3: 目的</div>
+    <div style="font-size:.62rem;color:#999">dr_dispatch ∈<br>契約許可目的リスト</div>
+    <div style="font-size:.68rem;color:#51cf66;font-weight:700;margin-top:2px">✓ PASS</div>
+  </div>
+  <div style="align-self:center;color:#51cf66">→</div>
+  <div style="flex:1;background:#51cf6608;border:1px solid #51cf6644;border-radius:6px;padding:6px;text-align:center;border-top:3px solid #51cf66">
+    <div style="font-size:1rem">👤</div>
+    <div style="font-size:.7rem;font-weight:700;color:#51cf66">Gate 4: 同意</div>
+    <div style="font-size:.62rem;color:#999">EV✓ 蓄電池✓<br>AC +2℃以内 ✓</div>
+    <div style="font-size:.68rem;color:#51cf66;font-weight:700;margin-top:2px">✓ PASS</div>
+  </div>
+</div>
+<div style="display:flex;gap:8px;font-size:.68rem">
+  <div style="background:#51cf6612;color:#51cf66;padding:3px 10px;border-radius:4px;font-weight:700">→ ALL PASS: DR実行許可</div>
+  <div style="background:#ff6b6b12;color:#ff6b6b;padding:3px 10px;border-radius:4px">🕵 Spy: research目的 → Gate 3 で DENIED (403)</div>
+</div>`},
+  {id:'ev',title:'④ EV 遅延充電に切替',
+   ev:1.2,bat:0,ac:2.2,base:1.2,pv:1.8,volt:0.948,evSOC:45,batSOC:60,acT:26,
+   evBg:{t:'⚡ DR制御',c:'#fcc419'},batBg:{t:'✓ 同意済',c:'#51cf66'},acBg:{t:'条件付+2℃',c:'#fcc419'},
+   ds:{同意:'確認済',契約:'ACTIVE',認証:'PASS',ポリシー:'PASS',監査:'4件',匿名化:'なし'},
+   flow:3,
+   explain:`<div style="font-weight:700;font-size:.85rem;margin-bottom:6px">🚗 EV 遅延充電: 信号と制約クランプ</div>
+<div style="display:flex;align-items:center;gap:4px;font-size:.7rem;margin-bottom:6px">
+  <span style="background:#00c8ff18;color:#00c8ff;padding:2px 8px;border-radius:4px;font-weight:700">☁ DS</span>
+  <span style="color:#555580">→ OpenADR信号 →</span>
+  <span style="background:#ffa94d18;color:#ffa94d;padding:2px 8px;border-radius:4px;font-weight:700">🖥 HEMS</span>
+  <span style="color:#555580">→ ECHONET Lite →</span>
+  <span style="background:#fcc41918;color:#fcc419;padding:2px 8px;border-radius:4px;font-weight:700">🚗 EVSE</span>
+</div>
+<div style="display:flex;gap:10px">
+  <div style="flex:1"><strong>DR要求:</strong> 充電停止 (0kW)<br><strong>同意制約:</strong> 最低充電 1.2kW<br><strong>適用:</strong> <span style="color:#fcc419;font-weight:700">1.2kW にクランプ</span><br><span style="font-size:.65rem;color:#999">→ 要求が同意範囲を超えたため HEMS が自動制限</span></div>
+  <div style="flex:1"><strong>削減:</strong> <span style="color:#51cf66;font-size:1.1rem;font-weight:900">-4.8 kW</span><br><strong>充電完了:</strong> 21:00→翌0:00 (+3h遅延)<br><strong>SOC:</strong> 45%→翌朝72% (出発に十分)<br><strong>報酬:</strong> <span style="color:#51cf66">¥144</span></div>
+</div>`},
+  {id:'bat',title:'⑤ 蓄電池 V2H 放電',
+   ev:1.2,bat:-2.0,ac:2.2,base:1.2,pv:1.8,volt:0.955,evSOC:45,batSOC:58,acT:26,
+   evBg:{t:'⚡ DR制御',c:'#fcc419'},batBg:{t:'⚡ 放電中',c:'#fcc419'},acBg:{t:'条件付+2℃',c:'#fcc419'},
+   ds:{同意:'確認済',契約:'ACTIVE',認証:'PASS',ポリシー:'PASS',監査:'5件',匿名化:'なし'},
+   flow:3,
+   explain:`<div style="font-weight:700;font-size:.85rem;margin-bottom:6px">🔋 蓄電池 V2H放電: 信号と制約クランプ</div>
+<div style="display:flex;align-items:center;gap:4px;font-size:.7rem;margin-bottom:6px">
+  <span style="background:#ffa94d18;color:#ffa94d;padding:2px 8px;border-radius:4px;font-weight:700">🖥 HEMS</span>
+  <span style="color:#555580">→ 放電指令 →</span>
+  <span style="background:#fcc41918;color:#fcc419;padding:2px 8px;border-radius:4px;font-weight:700">🔋 PCS</span>
+  <span style="color:#555580">→ DC/AC変換 →</span>
+  <span style="background:#51cf6618;color:#51cf66;padding:2px 8px;border-radius:4px;font-weight:700">🏠 宅内給電</span>
+</div>
+<div style="display:flex;gap:10px">
+  <div style="flex:1"><strong>DR要求:</strong> 放電 3kW<br><strong>同意制約:</strong> SOC下限 20%<br><strong>適用:</strong> <span style="color:#fcc419;font-weight:700">2kW に調整</span><br><span style="font-size:.65rem;color:#999">→ 3kWだと1.4hでSOC20%到達、2kWで2h持続に調整</span></div>
+  <div style="flex:1"><strong>削減:</strong> <span style="color:#51cf66;font-size:1.1rem;font-weight:900">-2.0 kW</span><br><strong>SOC:</strong> 60%→30% (2h後)<br><strong>回復:</strong> 夜間充電で翌朝60%<br><strong>報酬:</strong> <span style="color:#51cf66">¥100</span></div>
+</div>`},
+  {id:'ac',title:'⑥ AC 設定温度+2℃',
+   ev:1.2,bat:-2.0,ac:1.65,base:1.2,pv:1.8,volt:0.960,evSOC:45,batSOC:56,acT:28,
+   evBg:{t:'⚡ DR制御',c:'#fcc419'},batBg:{t:'⚡ 放電中',c:'#fcc419'},acBg:{t:'⚡ +2℃制御',c:'#fcc419'},
+   ds:{同意:'確認済',契約:'ACTIVE',認証:'PASS',ポリシー:'PASS',監査:'6件',匿名化:'なし'},
+   flow:3,
+   explain:`<div style="font-weight:700;font-size:.85rem;margin-bottom:6px">❄️ AC 設定温度変更: 信号と制約クランプ</div>
+<div style="display:flex;align-items:center;gap:4px;font-size:.7rem;margin-bottom:6px">
+  <span style="background:#ffa94d18;color:#ffa94d;padding:2px 8px;border-radius:4px;font-weight:700">🖥 HEMS</span>
+  <span style="color:#555580">→ 設定変更 →</span>
+  <span style="background:#fcc41918;color:#fcc419;padding:2px 8px;border-radius:4px;font-weight:700">❄️ AC室内機</span>
+</div>
+<div style="display:flex;gap:10px">
+  <div style="flex:1"><strong>DR要求:</strong> +3℃ (29℃)<br><strong>同意上限:</strong> +2℃まで<br><strong>適用:</strong> <span style="color:#fcc419;font-weight:700">28℃ にクランプ</span><br><span style="font-size:.65rem;color:#ff6b6b">→ +3℃以上は Data Space が自動ブロック</span></div>
+  <div style="flex:1"><strong>削減:</strong> <span style="color:#51cf66;font-size:1.1rem;font-weight:900">-0.55 kW</span> (25%減)<br><strong>室温:</strong> 26℃→28℃ (20分で到達)<br><strong>PMV:</strong> +0.7 (JIS快適範囲内)<br><strong>報酬:</strong> <span style="color:#51cf66">¥24</span></div>
+</div>
+<div style="margin-top:4px;font-size:.65rem;color:#fcc419">⚠ 同意上限ちょうど — これが最後の制御手段。次のモード(+3℃/サイクル)は緊急オーバーライドが必要。</div>`},
+  {id:'report',title:'⑦ 実績報告 (匿名化)',
+   ev:1.2,bat:-2.0,ac:1.65,base:1.2,pv:1.8,volt:0.962,evSOC:46,batSOC:54,acT:28,
+   evBg:{t:'⚡ DR制御',c:'#fcc419'},batBg:{t:'⚡ 放電中',c:'#fcc419'},acBg:{t:'⚡ +2℃制御',c:'#fcc419'},
+   ds:{同意:'確認済',契約:'ACTIVE',認証:'PASS',ポリシー:'PASS',監査:'7件',匿名化:'k≥5'},
+   flow:4,
+   explain:`<div style="font-weight:700;font-size:.85rem;margin-bottom:6px">📊 匿名化報告: 何を共有し、何を隠すか</div>
+<div style="display:flex;align-items:center;gap:4px;font-size:.7rem;margin-bottom:6px">
+  <span style="background:#ffa94d18;color:#ffa94d;padding:2px 8px;border-radius:4px;font-weight:700">🖥 HEMS</span>
+  <span style="color:#555580">→ 実績(種別のみ) →</span>
+  <span style="background:#74c0fc18;color:#74c0fc;padding:2px 8px;border-radius:4px;font-weight:700">🔋 Agg (193軒集約)</span>
+  <span style="color:#555580">→ k-匿名化 →</span>
+  <span style="background:#ff6b6b18;color:#ff6b6b;padding:2px 8px;border-radius:4px;font-weight:700">⚡ DSO (柱グループのみ)</span>
+</div>
+<div style="display:flex;gap:8px">
+  <div style="flex:1;background:#51cf6608;border:1px solid #51cf6633;border-radius:6px;padding:8px">
+    <div style="color:#51cf66;font-weight:700;font-size:.72rem;margin-bottom:4px">✓ 共有データ</div>
+    <div style="font-size:.65rem;color:#aaa;line-height:1.6">Aggへ: 削減量 7.35kW / 機器種別 / 遵守率<br>DSOへ: 柱グループ合計 312kW / 193軒 / k≥5</div>
+  </div>
+  <div style="flex:1;background:#ff6b6b08;border:1px solid #ff6b6b33;border-radius:6px;padding:8px">
+    <div style="color:#ff6b6b;font-weight:700;font-size:.72rem;margin-bottom:4px">✗ 非開示データ</div>
+    <div style="font-size:.65rem;color:#ff6b6b99;line-height:1.6">個別消費パターン / EV充電時刻<br>室温推移 / 隣家データ<br><strong>DSO→個別要求 = DENIED</strong></div>
+  </div>
+</div>`},
+  {id:'after',title:'AFTER — 全プロセス完了',
+   ev:1.2,bat:-2.0,ac:1.65,base:1.2,pv:1.8,volt:0.962,evSOC:46,batSOC:54,acT:28,
+   evBg:{t:'⚡ DR制御',c:'#fcc419'},batBg:{t:'⚡ 放電中',c:'#fcc419'},acBg:{t:'⚡ +2℃制御',c:'#fcc419'},
+   ds:{同意:'設定済',契約:'ACTIVE',認証:'PASS',ポリシー:'PASS',監査:'7件',匿名化:'k≥5',撤回:'即時保証',不正遮断:'DENIED'},
+   flow:5,
+   explain:`<div style="font-weight:700;font-size:.85rem;margin-bottom:6px;color:#51cf66">✅ 全プロセス完了 — Before / After</div>
+<div style="display:flex;gap:8px;margin-bottom:8px">
+  <div style="flex:1;text-align:center;padding:6px;background:#ff6b6b08;border:1px solid #ff6b6b33;border-radius:6px">
+    <div style="font-size:.6rem;color:#ff6b6b">BEFORE</div>
+    <div style="font-size:1.1rem;font-weight:900;color:#ff6b6b">7.6 kW</div><div style="font-size:.6rem;color:#555580">買電</div>
+  </div>
+  <div style="align-self:center;color:#51cf66;font-size:1.2rem">→</div>
+  <div style="flex:1;text-align:center;padding:6px;background:#51cf6608;border:1px solid #51cf6633;border-radius:6px">
+    <div style="font-size:.6rem;color:#51cf66">AFTER</div>
+    <div style="font-size:1.1rem;font-weight:900;color:#51cf66">0.25 kW</div><div style="font-size:.6rem;color:#555580">買電</div>
+  </div>
+  <div style="flex:1;text-align:center;padding:6px;background:#51cf6608;border:1px solid #51cf6633;border-radius:6px">
+    <div style="font-size:.6rem;color:#51cf66">削減</div>
+    <div style="font-size:1.1rem;font-weight:900;color:#51cf66">97%</div><div style="font-size:.6rem;color:#555580">-7.35kW</div>
+  </div>
+  <div style="flex:1;text-align:center;padding:6px;background:#51cf6608;border:1px solid #51cf6633;border-radius:6px">
+    <div style="font-size:.6rem;color:#51cf66">電圧</div>
+    <div style="font-size:.9rem;font-weight:900"><span style="color:#ff6b6b">.938</span>→<span style="color:#51cf66">.962</span></div><div style="font-size:.6rem;color:#555580">逸脱解消</div>
+  </div>
+  <div style="flex:1;text-align:center;padding:6px;background:#00c8ff08;border:1px solid #00c8ff33;border-radius:6px">
+    <div style="font-size:.6rem;color:#00c8ff">保証</div>
+    <div style="font-size:.9rem;font-weight:900;color:#00c8ff">7件</div><div style="font-size:.6rem;color:#555580">監査記録</div>
+  </div>
+</div>
+<div style="font-size:.72rem;color:#999;line-height:1.6">
+  <span style="color:#51cf66">✓</span> 同意ベース — 許可範囲内のみ使用 &nbsp;
+  <span style="color:#51cf66">✓</span> 即時撤回 (0.5秒) &nbsp;
+  <span style="color:#51cf66">✓</span> 目的外アクセス自動遮断 &nbsp;
+  <span style="color:#51cf66">✓</span> SHA-256監査 &nbsp;
+  <span style="color:#51cf66">✓</span> k-匿名化 &nbsp;
+  <span style="color:#ff6b6b">✗</span> 生データ流出 0
+</div>`}
+];
+
+const FLOW_NODES=[
+  {icon:'👤',name:'需要家',desc:'同意設定',color:'#ffa94d'},
+  {icon:'☁',name:'Data Space',desc:'契約・認証',color:'#00c8ff'},
+  {icon:'🛡',name:'ポリシー',desc:'4段ゲート',color:'#00c8ff'},
+  {icon:'🖥',name:'HEMS',desc:'機器制御',color:'#ffa94d'},
+  {icon:'📊',name:'匿名化報告',desc:'k-匿名化',color:'#51cf66'},
+  {icon:'✅',name:'完了',desc:'監査記録',color:'#51cf66'}
+];
+
+let cur=0;
+
+// ══════════════════════════════════════
+// Charts
+// ══════════════════════════════════════
+// ══════════════════════════════════════
+// Chart 1: Pure HTML horizontal bars
+// ══════════════════════════════════════
+const BAR_MAX=7; // kW scale max
+const BAR_DEVICES=[
+  {key:'ev',icon:'🚗',label:'EV',before:6.0,color:'#ffa94d'},
+  {key:'bat',icon:'🔋',label:'蓄電池',before:0,color:'#51cf66'},
+  {key:'ac',icon:'❄️',label:'AC',before:2.2,color:'#74c0fc'},
+  {key:'base',icon:'💡',label:'ベース',before:1.2,color:'#555580'}
+];
+
+function renderBars(s){
+  const el=document.getElementById('ch1');
+  const vals={ev:s.ev,bat:s.bat<0?Math.abs(s.bat):0,ac:s.ac,base:s.base};
+  let html='<div class="hbar">';
+  for(const d of BAR_DEVICES){
+    const bPct=Math.max(0,d.before/BAR_MAX*100);
+    const nVal=vals[d.key];
+    const nPct=Math.max(0,nVal/BAR_MAX*100);
+    const nColor=d.key==='bat'&&s.bat<0?'#51cf66':d.color;
+    const nLabel=d.key==='bat'&&s.bat<0?'-'+nVal.toFixed(1):nVal.toFixed(1);
+    const changed=Math.abs(nVal-d.before)>0.01;
+    html+=`<div class="hbar-row">
+      <div class="hbar-label" style="color:${d.color}">${d.icon} ${d.label}</div>
+      <div class="hbar-track" style="margin-right:48px">
+        <div class="hbar-before" style="width:${bPct}%;background:#ff6b6b"></div>
+        <div class="hbar-now" style="width:${nPct}%;background:${changed?'#51cf66':nColor}"></div>
+        <div class="hbar-val" style="color:${changed?'#51cf66':'#888'}">${nLabel} kW</div>
+      </div>
+    </div>`;
+  }
+  // Net row
+  const load=s.ev+s.ac+s.base+(s.bat>0?s.bat:0);
+  const gen=s.pv+(s.bat<0?Math.abs(s.bat):0);
+  const net=load-gen;
+  const netBefore=9.4-1.8;
+  html+=`<div class="hbar-row" style="margin-top:6px;padding-top:6px;border-top:1px solid #1e1e40">
+    <div class="hbar-label" style="color:#f9e2af">📊 ネット</div>
+    <div class="hbar-track" style="margin-right:48px">
+      <div class="hbar-before" style="width:${netBefore/BAR_MAX*100}%;background:#ff6b6b"></div>
+      <div class="hbar-now" style="width:${Math.max(0,net)/BAR_MAX*100}%;background:${net<3?'#51cf66':'#ff6b6b'}"></div>
+      <div class="hbar-val" style="color:${net<3?'#51cf66':'#ff6b6b'}">${net.toFixed(1)} kW</div>
+    </div>
+  </div>`;
+  html+=`<div class="hbar-scale"><span>0</span><span>2</span><span>4</span><span>6 kW</span></div>`;
+  html+=`<div class="hbar-legend"><span><i style="background:#ff6b6b;opacity:.5"></i>Before</span><span><i style="background:#51cf66"></i>Now</span></div>`;
+  html+='</div>';
+  el.innerHTML=html;
+}
+
+// ══════════════════════════════════════
+// Chart 2: Pure Canvas voltage (no Chart.js)
+// ══════════════════════════════════════
+function vProfile(drLevel){
+  const pts=[];
+  for(let h=0;h<=24;h++){
+    let v=1.025-0.012*Math.sin(Math.PI*Math.max(0,h-5)/14);
+    if(h>=14&&h<=21){
+      const f=Math.exp(-0.5*((h-17.5)/1.8)**2);
+      v-=0.07*f;
+      if(h>=17) v+=0.045*f*drLevel;
+    }
+    pts.push(Math.max(0.91,Math.min(1.04,v)));
+  }
+  return pts;
+}
+
+function renderVoltage(s){
+  const cv=document.getElementById('ch2');
+  const c=cv.getContext('2d');
+  const W=cv.width,H=cv.height;
+  c.clearRect(0,0,W,H);
+
+  const pad={t:20,b:24,l:40,r:16};
+  const pw=W-pad.l-pad.r, ph=H-pad.t-pad.b;
+  const vMin=0.92,vMax=1.04;
+
+  function xOf(h){return pad.l+h/24*pw}
+  function yOf(v){return pad.t+(1-(v-vMin)/(vMax-vMin))*ph}
+
+  // Grid
+  c.strokeStyle='#1e1e4066';c.lineWidth=1;
+  for(let v=0.92;v<=1.04;v+=0.02){
+    const y=yOf(v);
+    c.beginPath();c.moveTo(pad.l,y);c.lineTo(W-pad.r,y);c.stroke();
+    c.fillStyle='#555';c.font='8px monospace';c.textAlign='right';
+    c.fillText(v.toFixed(2),pad.l-4,y+3);
+  }
+  // X labels
+  c.fillStyle='#555';c.font='8px sans-serif';c.textAlign='center';
+  for(let h=0;h<=24;h+=4) c.fillText(h+':00',xOf(h),H-6);
+
+  // 0.95 limit
+  c.strokeStyle='#ff6b6b55';c.lineWidth=1;c.setLineDash([4,3]);
+  c.beginPath();c.moveTo(pad.l,yOf(0.95));c.lineTo(W-pad.r,yOf(0.95));c.stroke();
+  c.setLineDash([]);
+  c.fillStyle='#ff6b6b88';c.font='bold 8px sans-serif';c.textAlign='left';
+  c.fillText('0.95 下限',W-pad.r-50,yOf(0.95)-3);
+
+  // Before line (DR無し)
+  const vBefore=vProfile(0);
+  c.beginPath();c.strokeStyle='#ff6b6b';c.lineWidth=2;
+  for(let h=0;h<=24;h++){h===0?c.moveTo(xOf(h),yOf(vBefore[h])):c.lineTo(xOf(h),yOf(vBefore[h]))}
+  c.stroke();
+
+  // After line (DR有り)
+  const drLevel=Math.min(1,(S[0].ev-s.ev+Math.abs(s.bat)+(S[0].ac-s.ac))/7.35);
+  const vAfter=vProfile(drLevel);
+  c.beginPath();c.strokeStyle='#51cf66';c.lineWidth=2.5;
+  for(let h=0;h<=24;h++){h===0?c.moveTo(xOf(h),yOf(vAfter[h])):c.lineTo(xOf(h),yOf(vAfter[h]))}
+  c.stroke();
+
+  // 17:00 marker
+  c.beginPath();c.arc(xOf(17),yOf(s.volt),5,0,Math.PI*2);
+  c.fillStyle='#fcc419';c.fill();
+  c.fillStyle='#fcc419';c.font='bold 9px monospace';c.textAlign='left';
+  c.fillText(s.volt.toFixed(3)+' pu',xOf(17)+8,yOf(s.volt)+3);
+
+  // Legend
+  c.font='8px sans-serif';c.textAlign='left';
+  const ly=8;
+  c.strokeStyle='#ff6b6b';c.lineWidth=2;c.beginPath();c.moveTo(pad.l,ly);c.lineTo(pad.l+20,ly);c.stroke();
+  c.fillStyle='#ff6b6b';c.fillText('DR無し',pad.l+24,ly+3);
+  c.strokeStyle='#51cf66';c.lineWidth=2.5;c.beginPath();c.moveTo(pad.l+70,ly);c.lineTo(pad.l+90,ly);c.stroke();
+  c.fillStyle='#51cf66';c.fillText('DR有り',pad.l+94,ly+3);
+}
+
+function initCharts(){renderBars(S[0]);renderVoltage(S[0])}
+function updateCharts(s){renderBars(s);renderVoltage(s)}
+
+// ══════════════════════════════════════
+// Render
+// ══════════════════════════════════════
+// ══════════════════════════════════════
+// Rich interactive flow (ported from process-viz)
+// ══════════════════════════════════════
+function fa(color,label,data,rev){
+  const hs=rev?`border-right:8px solid ${color};border-top:6px solid transparent;border-bottom:6px solid transparent;order:-1`
+    :`border-left:8px solid ${color};border-top:6px solid transparent;border-bottom:6px solid transparent`;
+  return `<div style="flex:1;display:flex;align-items:center;position:relative;min-width:60px;padding:0 2px">
+    ${label?`<div style="position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:.6rem;font-weight:700;color:${color};white-space:nowrap">${label}</div>`:''}
+    <div style="flex:1;height:3px;background:${color}44;border-radius:2px;position:relative;overflow:hidden">
+      <div style="width:10px;height:3px;border-radius:2px;background:${color};position:absolute;animation:flowMove 1.5s linear infinite ${rev?'reverse':''}"></div>
+    </div>
+    <div style="width:0;height:0;${hs};flex-shrink:0"></div>
+    ${data?`<div style="position:absolute;bottom:-14px;left:50%;transform:translateX(-50%);font-size:.55rem;color:#666;white-space:nowrap">${data}</div>`:''}
+  </div>`;
+}
+function ac(icon,name,sub,color,glow,pulse){
+  return `<div class="actor${glow?' glow':''}${pulse?' pulse':''}" style="--gc:${color};border-color:${color}44">
+    <div class="a-icon">${icon}</div><div class="a-name" style="color:${color}">${name}</div>
+    ${sub?'<div class="a-sub">'+sub+'</div>':''}
+  </div>`;
+}
+
+function renderFlow(step){
+  const el=document.getElementById('house-flow');
+  if(!el)return;
+  const s=S[step];
+  let h='<div class="hflow">';
+
+  if(step===0){
+    h+=`<div class="scene-title" style="color:#ff6b6b">BEFORE — Data Space なし: 全員が孤立</div>
+    <div style="display:flex;gap:10px;font-size:.75rem">
+      <div style="flex:1;background:#ff6b6b06;border:1px solid #ff6b6b33;border-radius:8px;padding:10px">
+        <div style="color:#ff6b6b;font-weight:700;margin-bottom:4px">🏠 需要家</div>
+        EV 6kWフル充電中（制御手段なし）<br>蓄電池60%あるが待機のまま<br>系統混雑を知る手段がない<br>
+        <div style="margin-top:4px;font-size:.65rem;color:#888">自分の家の電力使用が地域の電圧問題を引き起こしていることすら知らない。仮にDRに参加したくても、データを安全に共有する仕組みがない。</div>
+      </div>
+      <div style="flex:1;background:#ff6b6b06;border:1px solid #ff6b6b33;border-radius:8px;padding:10px">
+        <div style="color:#ff6b6b;font-weight:700;margin-bottom:4px">⚡ DSO (配電事業者)</div>
+        末端電圧 0.938pu（<strong style="color:#ff6b6b">規定下限0.95以下</strong>）<br>個別世帯の負荷内訳が見えない<br>OLTCタップ上げだけでは不足<br>
+        <div style="margin-top:4px;font-size:.65rem;color:#888">フィーダー全体の電流は計測できるが、どの家のEVが原因かわからない。需要家にデータ提供を依頼する法的根拠もない。</div>
+      </div>
+      <div style="flex:1;background:#ff6b6b06;border:1px solid #ff6b6b33;border-radius:8px;padding:10px">
+        <div style="color:#ff6b6b;font-weight:700;margin-bottom:4px">🔋 Aggregator</div>
+        どの家に柔軟性があるか不明<br>DR参加の契約基盤がない<br>需要家との信頼関係が未構築<br>
+        <div style="margin-top:4px;font-size:.65rem;color:#888">EV・蓄電池・ACは物理的にDR可能だが、個別の状態を安全に把握し制御するプラットフォームがない。</div>
+      </div>
+    </div>
+    <div style="margin-top:8px;padding:8px 12px;background:#ff6b6b08;border:1px solid #ff6b6b22;border-radius:6px;font-size:.72rem;color:#ff8888;text-align:center">
+      <strong>結論:</strong> データ共有の信頼基盤がないため、全員が孤立。DSOはOLTCタップを上げるしかなく、それでも末端電圧は回復しない → <strong>電圧逸脱が継続し、停電リスクが高まる。</strong>
+    </div>`;
+
+  } else if(step===1){
+    h+=`<div class="scene-title">① 需要家が HEMS で同意範囲を設定し Data Space に登録</div>
+    <div class="flow-row">
+      ${ac('👤','需要家','同意を設定','#ffa94d')}
+      ${fa('#ffa94d','同意範囲を入力','EV✓ 蓄電池✓ AC条件付')}
+      ${ac('🖥','HEMS','同意ダッシュボード','#00c8ff',true)}
+      ${fa('#00c8ff','ConsentRecord登録','暗号署名付き')}
+      ${ac('☁','Data Space','同意管理','#00c8ff',true,true)}
+    </div>
+    <div style="display:flex;gap:6px;margin-top:8px;justify-content:center">
+      <div style="background:#51cf6608;border:1px solid #51cf6644;border-radius:6px;padding:8px;flex:1;max-width:150px;text-align:center">
+        <div style="font-size:1rem">🚗🔋</div><div style="color:#51cf66;font-weight:700;font-size:.72rem">許可</div>
+        <div style="font-size:.6rem;color:#999">EV充電・蓄電池SOC<br>目的: dr_dispatch</div>
+      </div>
+      <div style="background:#fcc41908;border:1px solid #fcc41944;border-radius:6px;padding:8px;flex:1;max-width:150px;text-align:center">
+        <div style="font-size:1rem">❄️</div><div style="color:#fcc419;font-weight:700;font-size:.72rem">条件付</div>
+        <div style="font-size:.6rem;color:#999">AC設定温度<br>DR時のみ・+2℃上限</div>
+      </div>
+      <div style="background:#ff6b6b08;border:1px solid #ff6b6b44;border-radius:6px;padding:8px;flex:1;max-width:150px;text-align:center">
+        <div style="font-size:1rem">🏠🔬</div><div style="color:#ff6b6b;font-weight:700;font-size:.72rem">拒否</div>
+        <div style="font-size:.6rem;color:#999">在宅パターン<br>統計研究用</div>
+      </div>
+    </div>
+    <div style="margin-top:8px;padding:6px 12px;background:#10102a;border:1px solid #1e1e40;border-radius:6px;font-size:.68rem;color:#999;line-height:1.6">
+      <strong style="color:#00c8ff">ポイント:</strong> 需要家が自分のデータの共有範囲を<strong style="color:#eef">自分で</strong>決める。ConsentRecordには暗号署名が付与され、Data Spaceに登録される。AggやDSOは同意の「有無と範囲」のみ参照でき、<strong style="color:#ff6b6b">生データには一切アクセスできない</strong>。同意はいつでも撤回可能。
+    </div>`;
+
+  } else if(step===2){
+    h+=`<div class="scene-title">② Aggregator からの DR 契約が Data Space を経由して到着</div>
+    <div class="flow-row">
+      ${ac('🔋','Aggregator','GreenFlex','#74c0fc')}
+      ${fa('#74c0fc','契約オファー','voltage_regulation')}
+      ${ac('☁','Data Space','認証+目的照合','#00c8ff',true,true)}
+      ${fa('#00c8ff','検証済み転送','mTLS✓ OIDC✓')}
+      ${ac('🖥','HEMS','承認画面','#ffa94d',true)}
+      ${fa('#51cf66','承認','',true)}
+      ${ac('👤','需要家','「承認」','#51cf66',false,true)}
+    </div>
+    <div style="text-align:center;margin-top:8px">
+      <div style="display:inline-flex;gap:14px;align-items:center">
+        <div style="background:#10102a;border:1.5px solid #74c0fc;border-radius:8px;padding:8px 14px;font-size:.7rem">
+          <div style="color:#555580;font-size:.6rem">契約内容</div>
+          対象: EV・蓄電池・AC | 報酬: ¥15/kWh | 14:00〜19:00<br>
+          <span style="color:#555580">データ保持30日 | AC+2℃上限 | EV最低1.2kW | SOC下限20%</span>
+        </div>
+        <span style="font-size:1.2rem;color:#51cf66">→</span>
+        <div style="background:#51cf6612;border:1.5px solid #51cf66;border-radius:8px;padding:8px 14px;text-align:center">
+          <div style="font-size:1rem">✅</div>
+          <div style="color:#51cf66;font-weight:800;font-size:.8rem">契約 ACTIVE</div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:8px;padding:6px 12px;background:#10102a;border:1px solid #1e1e40;border-radius:6px;font-size:.68rem;color:#999;line-height:1.6">
+      <strong style="color:#00c8ff">Data Spaceの役割:</strong> Aggregatorが直接需要家にアクセスするのではなく、Data Spaceが<strong style="color:#eef">仲介者</strong>として機能する。①mTLS(相互証明書)でAggの身元を検証 → ②OIDC(JWT)でユーザー権限を確認 → ③契約目的(voltage_regulation)が需要家の同意範囲と一致するか照合。全ステップが監査ログに記録される。需要家は<strong style="color:#51cf66">HEMS画面で契約内容を確認し、承認/拒否を選択</strong>できる。
+    </div>`;
+
+  } else if(step===3){
+    h+=`<div class="scene-title">③ DR 信号が到着 → Data Space の 4段ゲートを通過</div>
+    <div class="gate-row">
+      <div class="gate pass"><div class="g-icon">🔐</div><div class="g-name">認証</div><div class="g-desc">mTLS + OIDC</div><div class="g-result" style="color:#51cf66">✓ PASS</div></div>
+      <div style="align-self:center;color:#51cf66;font-size:1rem">→</div>
+      <div class="gate pass"><div class="g-icon">📝</div><div class="g-name">契約</div><div class="g-desc">ACTIVE確認</div><div class="g-result" style="color:#51cf66">✓ PASS</div></div>
+      <div style="align-self:center;color:#51cf66;font-size:1rem">→</div>
+      <div class="gate pass"><div class="g-icon">🎯</div><div class="g-name">目的</div><div class="g-desc">dr_dispatch∈許可</div><div class="g-result" style="color:#51cf66">✓ PASS</div></div>
+      <div style="align-self:center;color:#51cf66;font-size:1rem">→</div>
+      <div class="gate pass"><div class="g-icon">👤</div><div class="g-name">同意</div><div class="g-desc">EV✓ 蓄電池✓ AC✓</div><div class="g-result" style="color:#51cf66">✓ PASS</div></div>
+      <div style="align-self:center;color:#51cf66;font-size:1rem">→</div>
+      <div style="align-self:center;background:#51cf6618;border:1.5px solid #51cf66;border-radius:8px;padding:8px 12px;text-align:center">
+        <div style="font-size:1rem">⚡</div><div style="color:#51cf66;font-weight:800;font-size:.72rem">DR許可</div>
+      </div>
+    </div>
+    <div style="text-align:center;margin-top:4px">
+      <span style="background:#ff6b6b12;color:#ff6b6b;padding:3px 10px;border-radius:4px;font-size:.68rem">🕵 Spy: research目的 → Gate 3 で DENIED (403)</span>
+    </div>
+    <div style="margin-top:6px;padding:6px 12px;background:#10102a;border:1px solid #1e1e40;border-radius:6px;font-size:.68rem;color:#999;line-height:1.6">
+      <strong style="color:#00c8ff">4段ゲートの意味:</strong> DR信号が届くたびに、Data Spaceのポリシーエンジンが自動的に4つの検証を実行する。①<strong style="color:#eef">認証</strong>: 信号の送信元が正当か(なりすまし防止) → ②<strong style="color:#eef">契約</strong>: 有効な契約に基づいているか → ③<strong style="color:#eef">目的</strong>: 契約で許可された目的か(目的外利用防止) → ④<strong style="color:#eef">同意</strong>: 需要家が該当データ/機器の利用に同意しているか。1つでも失敗すれば<strong style="color:#ff6b6b">即座に遮断</strong>。人手を介さず、ミリ秒単位で判定される。
+    </div>`;
+
+  } else if(step===4){
+    h+=`<div class="scene-title">④ EV: 信号経路と同意クランプ</div>
+    <div class="flow-row">
+      ${ac('☁','Data Space','DR配信','#fcc419',true)}
+      ${fa('#fcc419','OpenADR信号','target:-4kW')}
+      ${ac('🖥','HEMS','制約チェック','#00c8ff',true,true)}
+      ${fa('#fcc419','ECHONET Lite','1.2kWにクランプ')}
+      ${ac('🚗','EVSE','遅延充電','#ffa94d',true)}
+    </div>
+    <div style="display:flex;gap:8px;margin-top:6px;font-size:.72rem">
+      <div style="flex:1"><strong>DR要求:</strong> 充電停止(0kW)<br><strong>同意制約:</strong> 最低1.2kW<br><strong>適用:</strong> <span style="color:#fcc419;font-weight:700">1.2kWにクランプ</span></div>
+      <div style="flex:1"><strong style="color:#51cf66;font-size:1rem">-4.8 kW</strong><br>充電完了: +3h遅延<br>翌朝SOC 72% (十分)<br>報酬: <span style="color:#51cf66">¥144</span></div>
+    </div>
+    <div style="margin-top:6px;padding:6px 12px;background:#10102a;border:1px solid #1e1e40;border-radius:6px;font-size:.68rem;color:#999;line-height:1.6">
+      <strong style="color:#fcc419">同意クランプの仕組み:</strong> DRコマンドは「充電停止(0kW)」を要求したが、需要家の同意制約に「最低充電1.2kW」が設定されている。HEMSはこの制約を自動的に適用し、<strong style="color:#fcc419">1.2kWにクランプ</strong>する。これにより、翌朝の出発に必要なSOCを確保しつつ、最大限の削減を実現。Aggregator側のバグや過剰要求から需要家を保護する<strong style="color:#eef">安全弁</strong>の役割を果たす。
+    </div>`;
+
+  } else if(step===5){
+    h+=`<div class="scene-title">⑤ 蓄電池: V2H放電</div>
+    <div class="flow-row">
+      ${ac('🖥','HEMS','放電指令','#00c8ff',true)}
+      ${fa('#51cf66','放電コマンド','2kW放電')}
+      ${ac('🔋','PCS','DC/AC変換','#51cf66',true,true)}
+      ${fa('#51cf66','宅内給電','V2H')}
+      ${ac('🏠','家','負荷軽減','#51cf66')}
+    </div>
+    <div style="display:flex;gap:8px;margin-top:6px;font-size:.72rem">
+      <div style="flex:1"><strong>DR要求:</strong> 放電3kW<br><strong>SOC下限:</strong> 20%<br><strong>適用:</strong> <span style="color:#fcc419;font-weight:700">2kWに調整</span> (2h持続)</div>
+      <div style="flex:1"><strong style="color:#51cf66;font-size:1rem">-2.0 kW</strong><br>SOC: 60%→30%<br>夜間再充電で翌朝60%<br>報酬: <span style="color:#51cf66">¥100</span></div>
+    </div>
+    <div style="margin-top:6px;padding:6px 12px;background:#10102a;border:1px solid #1e1e40;border-radius:6px;font-size:.68rem;color:#999;line-height:1.6">
+      <strong style="color:#51cf66">V2H (Vehicle to Home) 放電:</strong> 蓄電池のパワーコンディショナ(PCS)がDC→AC変換を行い、宅内の負荷に直接給電する。系統から見ると家全体の買電が2kW減少し、フィーダー末端の電圧が改善する。SOC下限20%はバックアップ電力（停電時約1h分）を確保するための制約。<strong style="color:#eef">夜間の安価な電力(¥15/kWh)で再充電</strong>し、DR報酬(¥100)との差額が需要家の利益になる。
+    </div>`;
+
+  } else if(step===6){
+    h+=`<div class="scene-title">⑥ AC: 設定温度+2℃ (同意上限)</div>
+    <div class="flow-row">
+      ${ac('🖥','HEMS','設定変更','#00c8ff',true)}
+      ${fa('#74c0fc','温度設定','26→28℃')}
+      ${ac('❄️','AC室内機','+2℃','#74c0fc',true,true)}
+    </div>
+    <div style="display:flex;gap:8px;margin-top:6px;font-size:.72rem">
+      <div style="flex:1"><strong>DR要求:</strong> +3℃(29℃)<br><strong>同意上限:</strong> +2℃<br><strong>適用:</strong> <span style="color:#fcc419;font-weight:700">28℃にクランプ</span><br><span style="color:#ff6b6b;font-size:.62rem">+3℃以上はDS自動ブロック</span></div>
+      <div style="flex:1"><strong style="color:#51cf66;font-size:1rem">-0.55 kW</strong> (25%減)<br>室温: 26→28℃ (20分)<br>PMV +0.7 (JIS快適範囲)<br>報酬: <span style="color:#51cf66">¥24</span></div>
+    </div>
+    <div style="margin-top:6px;padding:6px 12px;background:#10102a;border:1px solid #1e1e40;border-radius:6px;font-size:.68rem;color:#999;line-height:1.6">
+      <strong style="color:#fcc419">同意上限の重要性:</strong> DRコマンドは+3℃を要求したが、同意は+2℃まで。Data Spaceのポリシーエンジンがこれを検知し、<strong style="color:#fcc419">自動的に28℃にクランプ</strong>する。+3℃以上が本当に必要な場合はDSOが<strong style="color:#ff6b6b">緊急オーバーライド(emergency_override)</strong>を宣言し、需要家に再承認を求める必要がある。この場合、監査ログに緊急フラグが明記され、報酬も倍率適用される。<strong style="color:#eef">同意を超えた制御は、制度的にも技術的にも許されない。</strong>
+    </div>`;
+
+  } else if(step===7){
+    h+=`<div class="scene-title">⑦ 実績報告: 匿名化して3段階で共有</div>
+    <div class="flow-row">
+      ${ac('🖥','HEMS','実績集計','#ffa94d',true)}
+      ${fa('#51cf66','種別のみ','削減7.35kW')}
+      ${ac('🔋','Aggregator','193軒集約','#74c0fc',true)}
+      ${fa('#51cf66','k-匿名化','柱グループ k≥5')}
+      ${ac('⚡','DSO','集約値のみ','#ff6b6b')}
+    </div>
+    <div style="display:flex;gap:6px;margin-top:6px">
+      <div style="flex:1;background:#51cf6608;border:1px solid #51cf6633;border-radius:6px;padding:6px;font-size:.68rem">
+        <div style="color:#51cf66;font-weight:700">✓ 共有</div>
+        Aggへ: 削減量/機器種別/遵守率<br>DSOへ: 柱グループ合計312kW/193軒
+      </div>
+      <div style="flex:1;background:#ff6b6b08;border:1px solid #ff6b6b33;border-radius:6px;padding:6px;font-size:.68rem">
+        <div style="color:#ff6b6b;font-weight:700">✗ 非開示</div>
+        個別消費パターン / EV充電時刻<br>室温推移 (在宅推定リスク)<br>隣家 H-0041, H-0043 のデータ<br><strong>DSO → 個別世帯データ要求 = DENIED</strong>
+      </div>
+    </div>
+    <div style="margin-top:6px;padding:6px 12px;background:#10102a;border:1px solid #1e1e40;border-radius:6px;font-size:.68rem;color:#999;line-height:1.6">
+      <strong style="color:#00c8ff">3段階の匿名化:</strong> ①<strong style="color:#eef">HEMS→Agg</strong>: 削減量と機器種別のみ（消費パターン非開示）→ ②<strong style="color:#eef">Agg→DSO</strong>: 193軒分を柱グループ単位で集約（k-匿名性 k≥5）→ ③<strong style="color:#eef">DSO</strong>: 個別世帯データへのアクセスは契約目的(voltage_regulation)ではポリシーエンジンが自動拒否。<strong style="color:#ff6b6b">DSOが個別世帯の電力パターンを知ることは構造的に不可能。</strong>
+    </div>`;
+
+  } else if(step===8){
+    h+=`<div class="scene-title" style="color:#51cf66;font-size:1rem">まとめ: Data Space が実現する「データ主権を守った電圧制御」</div>
+
+    <!-- KPI row -->
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      <div style="flex:1;text-align:center;padding:8px;background:#ff6b6b08;border:1px solid #ff6b6b33;border-radius:8px">
+        <div style="font-size:.6rem;color:#ff6b6b">BEFORE 買電</div>
+        <div style="font-size:1.3rem;font-weight:900;color:#ff6b6b">7.6 kW</div>
+      </div>
+      <div style="align-self:center;color:#51cf66;font-size:1.2rem">→</div>
+      <div style="flex:1;text-align:center;padding:8px;background:#51cf6608;border:1px solid #51cf6633;border-radius:8px">
+        <div style="font-size:.6rem;color:#51cf66">AFTER 買電</div>
+        <div style="font-size:1.3rem;font-weight:900;color:#51cf66">0.25 kW</div>
+      </div>
+      <div style="flex:1;text-align:center;padding:8px;background:#51cf6608;border:1px solid #51cf6633;border-radius:8px">
+        <div style="font-size:.6rem;color:#51cf66">削減率</div>
+        <div style="font-size:1.3rem;font-weight:900;color:#51cf66">97%</div>
+      </div>
+      <div style="flex:1;text-align:center;padding:8px;background:#51cf6608;border:1px solid #51cf6633;border-radius:8px">
+        <div style="font-size:.6rem;color:#51cf66">電圧</div>
+        <div style="font-size:1.1rem;font-weight:900"><span style="color:#ff6b6b">.938</span> → <span style="color:#51cf66">.962 pu</span></div>
+      </div>
+      <div style="flex:1;text-align:center;padding:8px;background:#00c8ff08;border:1px solid #00c8ff33;border-radius:8px">
+        <div style="font-size:.6rem;color:#00c8ff">生データ流出</div>
+        <div style="font-size:1.3rem;font-weight:900;color:#00c8ff">0</div>
+      </div>
+    </div>
+
+    <!-- What DS guaranteed -->
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <div style="flex:1;background:#10102a;border:1px solid #51cf6633;border-radius:8px;padding:10px;border-top:3px solid #51cf66">
+        <div style="font-size:.78rem;font-weight:800;color:#51cf66;margin-bottom:6px">Data Space が保証したこと</div>
+        <div style="font-size:.7rem;line-height:1.8;color:#ccc">
+          <div><span style="color:#51cf66">✓</span> <strong>同意ベース制御</strong> — 需要家が許可した範囲でしかデータは使われない</div>
+          <div><span style="color:#51cf66">✓</span> <strong>同意クランプ</strong> — DR要求が同意範囲を超えたらHEMSが自動制限</div>
+          <div><span style="color:#51cf66">✓</span> <strong>契約ゲート</strong> — ACTIVE契約なしではデータアクセス不可</div>
+          <div><span style="color:#51cf66">✓</span> <strong>4段ポリシー検証</strong> — 認証・契約・目的・同意を毎回自動判定</div>
+          <div><span style="color:#51cf66">✓</span> <strong>k-匿名化</strong> — DSOには柱グループ集約値のみ (個別世帯は構造的に不可視)</div>
+          <div><span style="color:#51cf66">✓</span> <strong>SHA-256監査</strong> — 全7件のアクセスがハッシュチェーンで記録・改ざん不可</div>
+          <div><span style="color:#51cf66">✓</span> <strong>即時撤回</strong> — いつでも同意取消 → 0.5秒で全システムに反映</div>
+          <div><span style="color:#ff6b6b">✗</span> <strong>不正遮断</strong> — Spy/DSO個別要求 → 自動DENIED</div>
+        </div>
+      </div>
+      <div style="flex:1;background:#10102a;border:1px solid #ffa94d33;border-radius:8px;padding:10px;border-top:3px solid #ffa94d">
+        <div style="font-size:.78rem;font-weight:800;color:#ffa94d;margin-bottom:6px">需要家にとっての価値</div>
+        <div style="font-size:.7rem;line-height:1.8;color:#ccc">
+          <div>💰 <strong>報酬 ¥268</strong> (EV¥144 + 蓄電池¥100 + AC¥24)</div>
+          <div>⚡ <strong>電圧改善</strong> 0.938→0.962pu — 家電の安定動作</div>
+          <div>🔒 <strong>プライバシー</strong> 在宅パターン等は一切共有されない</div>
+          <div>📜 <strong>透明性</strong> 誰がいつ何のデータにアクセスしたか全て確認可能</div>
+          <div>🚗 <strong>利便性維持</strong> EV翌朝SOC72%、AC 28℃(JIS範囲)、蓄電池夜間回復</div>
+          <div>🛑 <strong>いつでも離脱</strong> 同意撤回で即座にDRから離脱できる</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Comparison table -->
+    <div style="font-size:.78rem;font-weight:800;color:#eef;margin-bottom:4px">Before / After 比較</div>
+    <table style="width:100%;font-size:.7rem;border-collapse:collapse">
+      <tr style="border-bottom:2px solid #1e1e40">
+        <th style="text-align:left;padding:4px 8px;color:#555580">項目</th>
+        <th style="text-align:center;padding:4px 8px;color:#ff6b6b">Before</th>
+        <th style="text-align:center;padding:4px 8px;color:#51cf66">After</th>
+      </tr>
+      <tr style="border-bottom:1px solid #0e0e1e"><td style="padding:3px 8px">EV充電</td><td style="text-align:center;color:#ff6b6b">6.0 kW (フル)</td><td style="text-align:center;color:#51cf66">1.2 kW (遅延充電)</td></tr>
+      <tr style="border-bottom:1px solid #0e0e1e"><td style="padding:3px 8px">蓄電池</td><td style="text-align:center;color:#555580">待機</td><td style="text-align:center;color:#51cf66">放電 2.0 kW (V2H)</td></tr>
+      <tr style="border-bottom:1px solid #0e0e1e"><td style="padding:3px 8px">エアコン</td><td style="text-align:center;color:#74c0fc">2.2 kW / 26℃</td><td style="text-align:center;color:#51cf66">1.65 kW / 28℃</td></tr>
+      <tr style="border-bottom:1px solid #0e0e1e"><td style="padding:3px 8px">ネット買電</td><td style="text-align:center;color:#ff6b6b;font-weight:700">7.6 kW</td><td style="text-align:center;color:#51cf66;font-weight:700">0.25 kW</td></tr>
+      <tr style="border-bottom:1px solid #0e0e1e"><td style="padding:3px 8px">末端電圧</td><td style="text-align:center;color:#ff6b6b;font-weight:700">0.938 pu ⚠</td><td style="text-align:center;color:#51cf66;font-weight:700">0.962 pu ✓</td></tr>
+      <tr style="border-bottom:1px solid #0e0e1e"><td style="padding:3px 8px">データ共有</td><td style="text-align:center;color:#ff6b6b">不可 (孤立)</td><td style="text-align:center;color:#51cf66">同意範囲内で安全に共有</td></tr>
+      <tr style="border-bottom:1px solid #0e0e1e"><td style="padding:3px 8px">アクセス制御</td><td style="text-align:center;color:#ff6b6b">なし</td><td style="text-align:center;color:#51cf66">4段ゲート + 契約ベース</td></tr>
+      <tr><td style="padding:3px 8px">監査・追跡</td><td style="text-align:center;color:#ff6b6b">不可能</td><td style="text-align:center;color:#51cf66">SHA-256 全記録 (7件)</td></tr>
+    </table>
+    <div style="margin-top:8px;padding:8px 12px;background:#00c8ff08;border:1px solid #00c8ff33;border-radius:8px;font-size:.72rem;color:#eef;text-align:center;line-height:1.6">
+      <strong style="color:#00c8ff">Data Space</strong> は「データの管制塔」として機能し、<strong>誰が・何の目的で・どのデータに・どこまでアクセスできるか</strong>を契約と同意に基づいて自動的に制御する。<br>
+      これにより、需要家のプライバシーを守りながら、配電系統の電圧問題を解消する<strong style="color:#51cf66">「データ主権を守ったDR」</strong>が実現する。
+    </div>`;
+  }
+
+  h+='</div>';
+  el.innerHTML=h;
+}
+
+function render(){
+  const s=S[cur];
+
+  // Step bar
+  document.getElementById('step-bar').innerHTML=S.map((st,i)=>
+    `<div class="stp${i===cur?' on':i<cur?' done':''}" onclick="go(${i})"><span class="sn">${i===0?'Before':i===S.length-1?'After':'Step '+i}</span>${st.id==='before'||st.id==='after'?st.id.toUpperCase():['同意','契約','検証','EV','蓄電池','AC','報告'][i-1]}</div>`
+  ).join('');
+
+  // Title
+  document.getElementById('step-title').textContent=s.title;
+
+  // ── SVG House update ──
+  const isDR=cur>=4&&cur<=8;
+  const vc=s.volt>=0.95?'#51cf66':'#ff6b6b';
+
+  // Voltage label
+  const svgVolt=document.getElementById('svg-volt');
+  svgVolt.textContent=s.volt.toFixed(3)+'pu';
+  svgVolt.setAttribute('fill',vc);
+
+  // PV
+  document.getElementById('svg-pv').textContent=s.pv.toFixed(1);
+
+  // DS line
+  const dsLine=document.getElementById('svg-ds-line');
+  const dsActive=cur>=1&&cur<=7;
+  dsLine.setAttribute('stroke',dsActive?'#00c8ff':'#1e1e40');
+  dsLine.setAttribute('stroke-dasharray',dsActive?'':'4,4');
+  const dsLabel=document.getElementById('svg-ds-label');
+  const dsLabelTexts={1:'契約確認',2:'ポリシー検証',3:'DR配信',4:'DR配信',5:'DR配信',6:'DR配信',7:'実績報告'};
+  dsLabel.textContent=dsLabelTexts[cur]||'';
+  dsLabel.setAttribute('opacity',dsActive?'1':'0');
+
+  // DR signal arrow
+  document.getElementById('svg-dr-signal').setAttribute('opacity',isDR?'1':'0');
+
+  // Device SVG update helper
+  function svgDev(prefix,val,sub,bg){
+    document.getElementById('svg-'+prefix+'-val').textContent=val;
+    document.getElementById('svg-'+prefix+'-val').setAttribute('fill',bg.c);
+    document.getElementById('svg-'+prefix+'-sub').textContent=sub;
+    document.getElementById('svg-'+prefix+'-box').setAttribute('stroke',bg.c);
+    document.getElementById('svg-'+prefix+'-box').setAttribute('fill',bg.c==='#fcc419'?'#14120a':'#0a0a14');
+    document.getElementById('svg-'+prefix+'-badge').setAttribute('fill',bg.c+'18');
+    document.getElementById('svg-'+prefix+'-badge-t').textContent=bg.t;
+    document.getElementById('svg-'+prefix+'-badge-t').setAttribute('fill',bg.c);
+  }
+  svgDev('ev',s.ev.toFixed(1)+' kW','SOC '+s.evSOC+'%',s.evBg);
+  svgDev('bat',s.bat<0?'放電'+Math.abs(s.bat)+'kW':s.bat>0?s.bat+'kW':'待機','SOC '+s.batSOC+'%',s.batBg);
+  svgDev('ac',s.ac.toFixed(1)+' kW',s.acT+'℃',s.acBg);
+
+  // Power summary
+  const load=s.ev+s.ac+s.base+(s.bat>0?s.bat:0);
+  const gen=s.pv+(s.bat<0?Math.abs(s.bat):0);
+  const net=load-gen;
+  document.getElementById('pw-load').textContent=load.toFixed(1);document.getElementById('pw-load').style.color=load>5?'#ff6b6b':'#51cf66';
+  document.getElementById('pw-gen').textContent=gen.toFixed(1);document.getElementById('pw-gen').style.color='#51cf66';
+  document.getElementById('pw-net').textContent=net.toFixed(1);document.getElementById('pw-net').style.color=net>3?'#ff6b6b':'#51cf66';
+  document.getElementById('pw-volt').textContent=s.volt.toFixed(3);document.getElementById('pw-volt').style.color=vc;
+
+  // DS pills
+  const dsBar=document.getElementById('ds-bar');
+  dsBar.innerHTML=Object.entries(s.ds).map(([k,v])=>{
+    const ok=v!=='なし';
+    const c=v==='なし'?'#ff6b6b':v.includes('DENIED')?'#ff6b6b':'#51cf66';
+    return `<div class="ds-pill" style="color:${c};border-color:${c}44;background:${c}08">${k}: ${v}</div>`;
+  }).join('');
+
+  // Interactive flow diagram
+  renderFlow(cur);
+
+  // Flow
+  document.getElementById('flow-bar').innerHTML=FLOW_NODES.map((n,i)=>{
+    const cls=i<s.flow?'done':i===s.flow?'active':'';
+    return `<div class="flow-node ${cls}">
+      <div class="fi">${n.icon}</div><div class="fn" style="color:${cls?n.color:'#333'}">${n.name}</div><div class="fd">${n.desc}</div>
+      ${i<FLOW_NODES.length-1?`<div class="flow-arr" style="color:${i<s.flow?'#51cf66':i===s.flow?'#00c8ff':'#333'}">→</div>`:''}
+    </div>`;
+  }).join('');
+
+  // Charts
+  updateCharts(s);
+}
+
+function go(i){cur=Math.max(0,Math.min(S.length-1,i));render()}
+function next(){go(cur+1)}
+function prev(){go(cur-1)}
+
+window.addEventListener('load',()=>{initCharts();render()});
+window.addEventListener('keydown',e=>{if(e.key==='ArrowRight')next();if(e.key==='ArrowLeft')prev()});
+</script>
+</body>
+</html>
