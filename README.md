@@ -4,111 +4,121 @@ Federated Data Space research prototype for the electricity sector. Each partici
 
 ## Architecture
 
-The system implements a 5-layer stack:
+![Architecture](docs/demos/concept-architecture.gif)
 
-| Layer | Purpose | Implementation |
-|-------|---------|----------------|
-| 1. Identity / Trust | Authentication & service-to-service trust | Keycloak OIDC + mTLS |
-| 2. Semantic Model | Interoperable data definitions | CIM, IEC 61850, OpenADR (Pydantic) |
-| 3. Catalog / Discovery | Data asset registration & search | Federated Catalog service |
-| 4. Policy / Contract / Consent | Machine-enforceable usage agreements | Contract state machine + consent manager |
-| 5. Access / Exchange | Actual data transfer | REST APIs + Kafka event bus |
+The system implements a 5-layer stack with 3 sovereign participants (DSO, Aggregator, Prosumer). Each node wraps all data exchanges with a shared **Data Space Connector** that enforces authentication, policy, and audit on every request.
 
-## Participants
+## Congestion Management — End-to-End Flow
 
-| Node | Port | Role |
-|------|------|------|
-| Federated Catalog | 8000 | Data asset discovery and contract negotiation |
-| DSO | 8001 | Distribution System Operator — publishes feeder constraints and congestion signals |
-| Aggregator | 8002 | DER Aggregator — publishes aggregate flexibility envelopes |
-| Prosumer | 8003 | Campus prosumer — consent-gated anonymized demand profiles |
+![Congestion Management](docs/demos/concept-congestion-flow.gif)
 
-## Key Use Case: Distribution Congestion Management
+The primary use case: DSO publishes feeder constraints, Aggregator discovers and negotiates a contract, reads constraints, submits flexibility offers, receives dispatch commands via Kafka, and reports actuals. Every step is recorded in an immutable audit trail.
 
-1. DSO publishes feeder constraints to the catalog
-2. Aggregator discovers the constraint asset
-3. Aggregator negotiates a data usage contract with DSO
-4. Aggregator reads constraint data (contract-gated)
-5. Aggregator submits flexibility offer
-6. DSO dispatches via Kafka
-7. Aggregator reports actuals
-8. Every step is recorded in an immutable audit trail
+## Contract Negotiation
 
-## Demos
+![Contract States](docs/demos/concept-contract-states.gif)
 
-### Full Test Suite
+No data exchange without an **ACTIVE** contract. Contracts follow a state machine (OFFERED -> NEGOTIATING -> ACTIVE) with terminal states (EXPIRED, REVOKED, REJECTED). Each contract specifies purpose constraints, retention limits, redistribution rules, and emergency override flags.
 
-**Unit Tests (226 tests)** — Connector models, contract state machine, policy engine, audit, semantic models, anonymizer
+## Identity & Trust
+
+![Auth Flow](docs/demos/concept-auth-flow.gif)
+
+Dual authentication: **mTLS** for service-to-service trust (both sides verify certificates signed by a shared CA) and **OIDC** via Keycloak for user/org identity. JWT tokens are validated locally using cached JWK keys — no per-request introspection.
+
+## Privacy & Data Sovereignty
+
+![Privacy](docs/demos/concept-privacy.gif)
+
+Consumer data is never shared raw. The **purpose** of the request determines the disclosure level: `research` gets only statistical aggregates, `dr_dispatch` gets only controllable margin, `billing` requires explicit consent. k-anonymity guarantees prevent individual identification. Consent revocation is immediate.
+
+## Federated Catalog
+
+![Catalog](docs/demos/concept-catalog.gif)
+
+Decentralized discovery: each participant registers data asset **metadata** (provider, type, sensitivity, policy, endpoint) to the catalog. Actual data stays local. Other participants search and discover assets, then negotiate contracts before accessing data.
+
+## Audit Trail
+
+![Audit](docs/demos/concept-audit.gif)
+
+Every data exchange produces an immutable audit entry with SHA-256 hashes of both request and response bodies, purpose tag, timestamp, requester identity, and contract reference. Audit is synchronous and non-optional — failing to audit = failing the request.
+
+---
+
+## Test Suite
+
+322 tests (226 unit + 96 integration) covering all layers:
+
+<details>
+<summary>Unit Tests (226 passed)</summary>
 
 ![Unit Tests](docs/demos/01-unit-tests.gif)
 
-**Integration Tests (96 tests)** — Catalog flow, contract negotiation, congestion management E2E, auth flow, audit trail
+</details>
+
+<details>
+<summary>Integration Tests (96 passed)</summary>
 
 ![Integration Tests](docs/demos/02-integration-tests.gif)
 
----
+</details>
 
-### Layer 1: Identity / Trust — OIDC + mTLS Authentication
-
-Valid tokens grant access, expired/invalid tokens are rejected, wrong roles return 403, mTLS certificate validation.
-
-![Auth Flow](docs/demos/05-auth-flow.gif)
-
----
-
-### Layer 2: Semantic Models — CIM / IEC 61850 / OpenADR / Consumer
-
-Strictly typed Pydantic models for grid topology, DER flexibility, DR events, and consumer data with sensitivity tiers.
-
-![Semantic Models](docs/demos/09-semantic-models.gif)
-
----
-
-### Layer 3: Federated Catalog — Asset Registration & Discovery
-
-Participants register data assets with metadata and policy info. Others search and discover assets by provider, type, or sensitivity.
-
-![Catalog Flow](docs/demos/07-catalog-flow.gif)
-
----
-
-### Layer 4a: Contract Negotiation — OFFERED -> NEGOTIATING -> ACTIVE
-
-Machine-enforceable contracts with purpose constraints, redistribution limits, retention limits, and emergency override.
+<details>
+<summary>Contract Negotiation Tests</summary>
 
 ![Contract Negotiation](docs/demos/03-contract-negotiation.gif)
 
----
+</details>
 
-### Layer 4b: Policy Engine — Purpose Constraints & Sensitivity Tiers
-
-Purpose-based access control, sensitivity tier checks, emergency DSO override, redistribution/retention limits.
-
-![Policy Engine](docs/demos/10-policy-engine.gif)
-
----
-
-### Layer 4c: Privacy — Data Anonymization & Purpose-Based Disclosure
-
-Consumer data is never shared raw. Disclosure level is determined by purpose: research -> aggregated, dr_dispatch -> controllability only, billing -> identified (with consent), forecasting -> k-anonymized.
-
-![Anonymizer](docs/demos/08-anonymizer.gif)
-
----
-
-### Layer 5: Congestion Management — End-to-End Flow
-
-DSO publishes constraints -> Aggregator discovers -> negotiates contract -> reads constraints -> submits flexibility offer -> DSO dispatches via Kafka -> Aggregator reports actuals -> full audit trail.
+<details>
+<summary>Congestion Management E2E Tests</summary>
 
 ![Congestion Management E2E](docs/demos/04-congestion-management.gif)
 
----
+</details>
 
-### Audit Trail — Immutable Hash-Verified Exchange Log
+<details>
+<summary>Auth Flow Tests</summary>
 
-Every data exchange produces an audit entry with request/response hashes (SHA-256), purpose tag, timestamp, and requester identity.
+![Auth Flow](docs/demos/05-auth-flow.gif)
+
+</details>
+
+<details>
+<summary>Audit Trail Tests</summary>
 
 ![Audit Trail](docs/demos/06-audit-trail.gif)
+
+</details>
+
+<details>
+<summary>Catalog Flow Tests</summary>
+
+![Catalog Flow](docs/demos/07-catalog-flow.gif)
+
+</details>
+
+<details>
+<summary>Anonymizer Tests</summary>
+
+![Anonymizer](docs/demos/08-anonymizer.gif)
+
+</details>
+
+<details>
+<summary>Semantic Models Tests</summary>
+
+![Semantic Models](docs/demos/09-semantic-models.gif)
+
+</details>
+
+<details>
+<summary>Policy Engine Tests</summary>
+
+![Policy Engine](docs/demos/10-policy-engine.gif)
+
+</details>
 
 ---
 
@@ -198,46 +208,10 @@ make docker-up
 ### Run Tests
 
 ```bash
-make test              # Full test suite
-make test-unit         # Unit tests only
-make test-integration  # Integration tests only
+make test              # Full test suite (322 tests)
+make test-unit         # Unit tests only (226 tests)
+make test-integration  # Integration tests only (96 tests)
 ```
-
-### Code Quality
-
-```bash
-make lint              # Run ruff linter
-make format            # Run ruff formatter
-```
-
-## Data Sensitivity Classification
-
-| Data Type | Sensitivity | Access Policy |
-|-----------|------------|---------------|
-| Grid topology / protection settings | HIGH | Operators only |
-| Feeder congestion signals | MEDIUM | Contract-gated |
-| DER flexibility envelopes | MEDIUM | Contract-gated (aggregate only) |
-| Smart meter / BEMS data | HIGH_PRIVACY | Consent-required, purpose-based anonymization |
-
-Consumer data disclosure levels are determined by purpose:
-
-| Purpose | Disclosure Level |
-|---------|-----------------|
-| `research` | Aggregated only |
-| `dr_dispatch` | Controllability margin only |
-| `billing` | Identified (with consent) |
-| `forecasting` | Anonymized (k-anonymity) |
-
-## Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `KEYCLOAK_SERVER_URL` | `http://localhost:8080` | Keycloak base URL |
-| `KEYCLOAK_REALM` | `dataspace` | OIDC realm |
-| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka broker |
-| `CATALOG_URL` | `http://localhost:8000` | Catalog service URL |
-| `DATABASE_URL` | `sqlite:///data/{node}.db` | Local database |
-| `PARTICIPANT_ID` | — | Unique node identifier |
 
 ## License
 
