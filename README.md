@@ -46,6 +46,37 @@ Every data exchange produces an immutable audit entry with SHA-256 hashes of bot
 
 ---
 
+## Live Demos
+
+### 1000-Household Congestion Management
+
+Full role-playing scenario: DSO detects congestion, Aggregator negotiates contract, dispatches DR from 1000 households (EV/battery/AC/heat pump), spy gets blocked, prosumer revokes consent, DSO uses emergency override.
+
+![Congestion Demo](docs/demos/demo-congestion.gif)
+
+**Visualization output:**
+
+![Congestion Slideshow](docs/demos/slideshow-congestion.gif)
+
+### Grid Topology & Power Flow
+
+250 poles (4 houses each) on 2 feeders, simplified DistFlow voltage calculation, 162 voltage violations detected, DR dispatch via federated data space reduces violations.
+
+![Grid Demo](docs/demos/demo-grid-topology.gif)
+
+**Visualization output:**
+
+![Grid Slideshow](docs/demos/slideshow-grid.gif)
+
+Run the demos yourself:
+
+```bash
+.venv/bin/python examples/congestion_management_demo.py  # 9 charts in examples/output/
+.venv/bin/python examples/grid_topology_demo.py          # 4 charts in examples/output/
+```
+
+---
+
 ## Test Suite
 
 322 tests (226 unit + 96 integration) covering all layers:
