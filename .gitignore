@@ -1,0 +1,22 @@
+# Auto Claude
+.auto-claude/
+.auto-claude-security.json
+.auto-claude-status
+.claude_settings.json
+ACTIVE
+NEGOTIATING
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+
+# Data / caches
+data/
+audit/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
