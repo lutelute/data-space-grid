@@ -5,586 +5,361 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Data Space Grid — フェデレーテッド・データスペースによる配電系統の混雑管理</title>
 <style>
-/* ── Theme ── */
-:root {
-  --bg: #0f0f1a; --text: #e0e0e0; --accent: #00d2ff; --accent2: #7b61ff;
-  --card: #1a1a2e; --border: #2a2a4a; --muted: #8888aa;
-  --red: #f38ba8; --green: #a6e3a1; --yellow: #f9e2af;
-  --blue: #89b4fa; --mauve: #cba6f7; --teal: #94e2d5; --peach: #fab387;
-}
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; overflow: hidden;
-  font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Inter', system-ui, sans-serif;
-  background: var(--bg); color: var(--text); }
-
-.slide { display: none; flex-direction: column; justify-content: center;
-  align-items: center; height: 100vh; padding: 50px 70px;
-  position: absolute; top: 0; left: 0; width: 100%; text-align: center; }
-.slide.active { display: flex; }
-.slide.out-left  { display: flex; animation: slideOutLeft .3s ease-out forwards; }
-.slide.out-right { display: flex; animation: slideOutRight .3s ease-out forwards; }
-@keyframes slideIn        { from { opacity:0; transform:translateX(60px) } to { opacity:1; transform:translateX(0) } }
-@keyframes slideInReverse { from { opacity:0; transform:translateX(-60px)} to { opacity:1; transform:translateX(0) } }
-@keyframes slideOutLeft   { to { opacity:0; transform:translateX(-60px) } }
-@keyframes slideOutRight  { to { opacity:0; transform:translateX(60px) } }
-
-h1 { font-size: 2.8rem; color: var(--accent); border-bottom: 2px solid var(--accent);
-  padding-bottom: 0.4rem; margin-bottom: 0.8rem; }
-h2 { font-size: 2rem; color: var(--accent); margin-bottom: 1.2rem; }
-h3 { font-size: 1.2rem; color: var(--accent2); margin-bottom: 0.6rem; }
-p, li { font-size: 1.15rem; line-height: 1.7; }
-ul { list-style: none; text-align: left; }
-ul li { padding: 6px 0 6px 24px; position: relative; }
-ul li::before { content: '▸'; position: absolute; left: 0; color: var(--accent); font-weight: 700; }
-strong { color: #fff; }
-em { color: var(--muted); font-style: italic; }
-code { background: #1e1e2e; color: var(--accent); padding: 0.1em 0.4em; border-radius: 4px; font-size: 0.9em; }
-.card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 24px; }
-table { border-collapse: collapse; font-size: 1rem; }
-th, td { border: 1px solid var(--border); padding: 8px 14px; text-align: left; }
-th { background: var(--card); color: var(--accent); font-weight: 600; }
-.progress { position: fixed; bottom: 1rem; right: 1.5rem; font-size: 0.9rem; color: var(--muted); }
-
-/* Utilities */
-.text-left { text-align: left; }
-.cols { display: flex; gap: 32px; width: 100%; }
-.col { flex: 1; }
-.stat { text-align: center; }
-.stat .number { font-size: 3rem; font-weight: 800; line-height: 1; }
-.stat .label { font-size: 0.9rem; color: var(--muted); margin-top: 6px; }
-.tag { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; }
-.small { font-size: 0.85rem; color: var(--muted); }
-
-/* Flow diagram */
-.flow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; }
-.flow-box { background: var(--card); border: 2px solid var(--border); border-radius: 10px;
-  padding: 14px 18px; text-align: center; min-width: 120px; }
-.flow-arrow { font-size: 1.5rem; color: var(--muted); }
-
-/* Timeline */
-.timeline { position: relative; padding-left: 32px; text-align: left; }
-.timeline::before { content: ''; position: absolute; left: 6px; top: 0; bottom: 0; width: 2px; background: var(--border); }
-.tl-item { position: relative; margin-bottom: 20px; }
-.tl-item::before { content: ''; position: absolute; left: -30px; top: 4px; width: 12px; height: 12px;
-  border-radius: 50%; border: 3px solid var(--bg); }
-.tl-ok::before { background: var(--green); }
-.tl-deny::before { background: var(--red); }
-.tl-warn::before { background: var(--yellow); }
-.tl-info::before { background: var(--accent); }
-
-/* Comparison */
-.vs { display: flex; gap: 24px; width: 100%; }
-.vs > div { flex: 1; }
-.vs .bad { border-color: var(--red); }
-.vs .good { border-color: var(--green); }
+:root{--bg:#0a0a16;--card:#141428;--border:#252545;--text:#d0d0e8;--accent:#00d2ff;--accent2:#7b61ff;
+--red:#f38ba8;--green:#a6e3a1;--yellow:#f9e2af;--blue:#89b4fa;--mauve:#cba6f7;--teal:#94e2d5;--peach:#fab387;--muted:#6c7086}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP','Inter',system-ui,sans-serif;background:var(--bg);color:var(--text)}
+.slide{display:none;flex-direction:column;justify-content:center;align-items:center;width:100vw;height:100vh;padding:48px 64px;position:absolute;top:0;left:0;text-align:center}
+.slide.active{display:flex}
+.slide.out-left{display:flex;animation:outL .3s ease-out forwards}
+.slide.out-right{display:flex;animation:outR .3s ease-out forwards}
+@keyframes slideIn{from{opacity:0;transform:translateX(50px)}to{opacity:1;transform:translateX(0)}}
+@keyframes slideInR{from{opacity:0;transform:translateX(-50px)}to{opacity:1;transform:translateX(0)}}
+@keyframes outL{to{opacity:0;transform:translateX(-50px)}}
+@keyframes outR{to{opacity:0;transform:translateX(50px)}}
+@keyframes glow{0%,100%{box-shadow:0 0 8px rgba(0,210,255,.2)}50%{box-shadow:0 0 24px rgba(0,210,255,.5)}}
+@keyframes flowRight{from{transform:translateX(-6px);opacity:.3}to{transform:translateX(6px);opacity:1}}
+h1{font-size:2.8rem;color:#fff;line-height:1.2;margin-bottom:.6rem}
+h2{font-size:2.1rem;color:#fff;margin-bottom:1rem}
+h3{font-size:1.15rem;color:var(--accent);margin-bottom:.5rem}
+p,li{font-size:1.1rem;line-height:1.7}
+strong{color:#fff}
+code{background:#1a1a30;color:var(--accent);padding:.1em .4em;border-radius:4px;font-size:.85em;font-family:'SF Mono','Menlo',monospace}
+ul{list-style:none;text-align:left}
+ul li{padding:5px 0 5px 22px;position:relative}
+ul li::before{content:'▸';position:absolute;left:0;color:var(--accent);font-weight:700}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px;text-align:left}
+table{border-collapse:collapse;font-size:.95rem;width:100%}
+th,td{border:1px solid var(--border);padding:7px 12px;text-align:left}
+th{background:var(--card);color:var(--accent);font-weight:600}
+.progress{position:fixed;bottom:14px;right:20px;font-size:.85rem;color:var(--muted);z-index:99}
+.cols{display:flex;gap:24px;width:100%}
+.tag{display:inline-block;padding:2px 10px;border-radius:4px;font-size:.75rem;font-weight:700;margin:2px}
+.small{font-size:.8rem;color:var(--muted)}
+.sec-item{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)}
+.sec-icon{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.9rem;flex-shrink:0}
+.sec-ok{background:rgba(166,227,161,.15);color:var(--green)}
+.sec-deny{background:rgba(243,139,168,.15);color:var(--red)}
+.sec-warn{background:rgba(249,226,175,.15);color:var(--yellow)}
+.node{border-radius:14px;padding:20px 24px;text-align:left;position:relative;overflow:hidden}
+.node::before{content:'';position:absolute;top:0;left:0;right:0;height:4px}
+.node-dso{background:rgba(243,139,168,.08);border:1px solid rgba(243,139,168,.3)}.node-dso::before{background:var(--red)}
+.node-agg{background:rgba(137,180,250,.08);border:1px solid rgba(137,180,250,.3)}.node-agg::before{background:var(--blue)}
+.node-pro{background:rgba(250,179,135,.08);border:1px solid rgba(250,179,135,.3)}.node-pro::before{background:var(--peach)}
+.process-step{opacity:0;transform:translateY(15px);transition:all .5s ease-out}
+.process-step.visible{opacity:1;transform:translateY(0)}
+.bar-container{display:flex;align-items:center;gap:8px;margin:6px 0}
+.bar-label{width:110px;font-size:.85rem;text-align:right;flex-shrink:0}
+.bar-track{flex:1;height:22px;background:var(--card);border-radius:6px;overflow:hidden;border:1px solid var(--border)}
+.bar-fill{height:100%;border-radius:6px;transition:width 1.5s ease-out;width:0}
+.bar-value{width:70px;font-size:.85rem;font-weight:700;flex-shrink:0}
+.stat{text-align:center}.stat .num{font-size:2.6rem;font-weight:800;line-height:1}.stat .lbl{font-size:.8rem;color:var(--muted);margin-top:4px}
 </style>
 </head>
 <body>
 
-<!-- ===== SLIDE 1: TITLE ===== -->
+<!-- 1: TITLE -->
 <div class="slide active">
-  <h1>フェデレーテッド・データスペース<br>による配電系統の混雑管理</h1>
-  <p style="font-size:1.3rem; margin-top:1rem;">Data Space Grid — 研究プロトタイプ</p>
-  <div style="margin-top:2.5rem;">
-    <p>1000軒のDR制御 × セキュリティ × プライバシー</p>
-    <p style="margin-top:1rem;"><em>→ / Space で次のスライドへ</em></p>
+  <div style="margin-bottom:2rem">
+    <div style="font-size:1rem;color:var(--accent);letter-spacing:3px;margin-bottom:12px">FEDERATED DATA SPACE</div>
+    <h1>配電系統の混雑管理を<br><span style="color:var(--accent)">データ主権</span>を守りながら実現する</h1>
+    <p style="font-size:1.2rem;color:var(--muted);margin-top:16px">Data Space Grid — 1,000軒 × DR制御 × セキュリティ × プライバシー</p>
   </div>
-</div>
-
-<!-- ===== SLIDE 2: 課題 ===== -->
-<div class="slide">
-  <h2>電力データ共有の「信頼の壁」</h2>
-  <div class="vs" style="margin-top:1.5rem;">
-    <div class="card bad" style="border-color: var(--red);">
-      <h3 style="color: var(--red);">DSO の悩み</h3>
-      <ul>
-        <li>系統混雑を解消するにはDERの柔軟性が必要</li>
-        <li>しかし<strong>系統トポロジ</strong>は企業秘密</li>
-        <li>データを渡したら使い方を制御できない</li>
-      </ul>
-    </div>
-    <div class="card bad" style="border-color: var(--yellow);">
-      <h3 style="color: var(--yellow);">Aggregator の悩み</h3>
-      <ul>
-        <li>最適なDR制御にはフィーダー制約が必要</li>
-        <li>しかし<strong>個別DERの状態</strong>は競争優位</li>
-        <li>DSOに全デバイス情報を渡したくない</li>
-      </ul>
-    </div>
-    <div class="card bad" style="border-color: var(--peach);">
-      <h3 style="color: var(--peach);">需要家の悩み</h3>
-      <ul>
-        <li>電気代削減のためDRに参加したい</li>
-        <li>しかし<strong>生活パターン</strong>がバレる</li>
-        <li>同意を撤回しても反映されるか不安</li>
-      </ul>
-    </div>
+  <div style="display:flex;gap:16px;margin-top:1.5rem">
+    <div class="card" style="padding:14px 20px;text-align:center;border-color:var(--red)"><div style="font-size:1.8rem">🔴</div><div style="font-size:.85rem;margin-top:4px">DSO</div></div>
+    <div style="font-size:1.5rem;color:var(--muted);align-self:center;animation:flowRight 1.2s ease-in-out infinite alternate">⇄</div>
+    <div class="card" style="padding:14px 20px;text-align:center;border-color:var(--blue)"><div style="font-size:1.8rem">🔵</div><div style="font-size:.85rem;margin-top:4px">Aggregator</div></div>
+    <div style="font-size:1.5rem;color:var(--muted);align-self:center;animation:flowRight 1.2s ease-in-out infinite alternate">⇄</div>
+    <div class="card" style="padding:14px 20px;text-align:center;border-color:var(--peach)"><div style="font-size:1.8rem">🟠</div><div style="font-size:.85rem;margin-top:4px">1,000 Prosumers</div></div>
   </div>
-  <p style="margin-top:1.5rem; font-size:1.3rem;"><strong>→ 全員の要求を同時に満たす仕組みが必要</strong></p>
+  <p style="margin-top:2rem;font-size:.9rem;color:var(--muted)">→ / Space で次へ</p>
 </div>
 
-<!-- ===== SLIDE 3: 解決策 ===== -->
+<!-- 2: PROBLEM -->
 <div class="slide">
-  <h2>データスペースという解決策</h2>
-  <p style="font-size:1.3rem; margin-bottom:1.5rem;">
-    データの<strong style="color:var(--accent)">主権を保持したまま</strong>、<br>
-    信頼された仕組みでデータを交換する
-  </p>
-  <div class="cols">
-    <div class="card" style="border-left: 4px solid var(--green);">
-      <h3 style="color:var(--green)">原則1: データは出ない</h3>
-      <p>実データは元のノードに留まる。<br>共有されるのは<strong>メタデータ</strong>のみ</p>
-    </div>
-    <div class="card" style="border-left: 4px solid var(--blue);">
-      <h3 style="color:var(--blue)">原則2: 契約が必須</h3>
-      <p>全てのデータ交換に<br><strong>機械実行可能な契約</strong>が必要</p>
-    </div>
-    <div class="card" style="border-left: 4px solid var(--mauve);">
-      <h3 style="color:var(--mauve)">原則3: 目的が制限</h3>
-      <p>「混雑管理」で渡したデータは<br><strong>他の目的に使えない</strong></p>
-    </div>
-    <div class="card" style="border-left: 4px solid var(--teal);">
-      <h3 style="color:var(--teal)">原則4: 全て記録</h3>
-      <p>全交換を<strong>SHA-256ハッシュ</strong>付きで<br>改ざん不可能な形で記録</p>
-    </div>
-  </div>
-</div>
-
-<!-- ===== SLIDE 4: ARCHITECTURE ===== -->
-<div class="slide">
-  <h2>5層アーキテクチャ</h2>
-  <table style="width: 90%; margin-top: 0.5rem;">
-    <tr><th style="width:40px">層</th><th>名称</th><th>責務</th><th>実装</th></tr>
-    <tr><td style="color:var(--blue)">5</td><td><strong>Access / Exchange</strong></td><td>実際のデータ転送</td><td>REST API + Kafka</td></tr>
-    <tr><td style="color:var(--mauve)">4</td><td><strong>Policy / Contract / Consent</strong></td><td>アクセス可否の判定</td><td>契約状態遷移マシン + ポリシーエンジン</td></tr>
-    <tr><td style="color:var(--teal)">3</td><td><strong>Catalog / Discovery</strong></td><td>データアセットの発見</td><td>フェデレーテッドカタログ</td></tr>
-    <tr><td style="color:var(--yellow)">2</td><td><strong>Semantic Model</strong></td><td>データの意味の統一</td><td>CIM / IEC 61850 / OpenADR</td></tr>
-    <tr><td style="color:var(--green)">1</td><td><strong>Identity / Trust</strong></td><td>認証と信頼の確立</td><td>Keycloak OIDC + mTLS</td></tr>
-  </table>
-  <p style="margin-top:1rem;">各層が独立した責務を持ち、上位層は下位層に依存</p>
-</div>
-
-<!-- ===== SLIDE 5: 3 PARTICIPANTS ===== -->
-<div class="slide">
-  <h2>3つのデータ主権者</h2>
-  <div class="cols" style="margin-top:1rem;">
-    <div class="card" style="border-top: 4px solid var(--red);">
-      <h3 style="color:var(--red)">🔴 DSO（配電事業者）</h3>
-      <p style="font-size:1rem"><strong>Port 8001</strong></p>
-      <ul style="font-size:1rem">
-        <li>フィーダー制約を公開</li>
-        <li>混雑信号を送信</li>
-        <li>Kafka でディスパッチ指令</li>
-      </ul>
-      <p class="small" style="margin-top:8px">見えないもの: 個別住宅データ</p>
-    </div>
-    <div class="card" style="border-top: 4px solid var(--blue);">
-      <h3 style="color:var(--blue)">🔵 Aggregator</h3>
-      <p style="font-size:1rem"><strong>Port 8002</strong></p>
-      <ul style="font-size:1rem">
-        <li>柔軟性エンベロープを提出</li>
-        <li>DR指令を実行</li>
-        <li>実績を報告</li>
-      </ul>
-      <p class="small" style="margin-top:8px">見えないもの: 系統トポロジ</p>
-    </div>
-    <div class="card" style="border-top: 4px solid var(--peach);">
-      <h3 style="color:var(--peach)">🟠 Prosumer（需要家）</h3>
-      <p style="font-size:1rem"><strong>Port 8003</strong></p>
-      <ul style="font-size:1rem">
-        <li>同意に基づきデータを共有</li>
-        <li>目的別に自動匿名化</li>
-        <li>いつでも同意撤回可能</li>
-      </ul>
-      <p class="small" style="margin-top:8px">見えないもの: 隣の家、系統</p>
-    </div>
-  </div>
-</div>
-
-<!-- ===== SLIDE 6: SCENARIO ===== -->
-<div class="slide">
-  <h2>シナリオ: 夏の午後、フィーダーが限界に</h2>
-  <div class="cols" style="margin-top:1rem; text-align:left;">
-    <div style="flex:1.2">
-      <div class="card" style="border-left: 4px solid var(--red); margin-bottom:16px;">
-        <h3>Feeder F-101</h3>
-        <p>定格容量: <strong>5,000 kW (5 MW)</strong></p>
-        <p>現在負荷: <strong style="color:var(--red)">4,236 kW (85%)</strong></p>
-        <p>EV充電 + エアコンの集中 → 混雑!</p>
-      </div>
-      <div class="card">
-        <h3>1,000軒の構成</h3>
-        <table style="width:100%; font-size:0.95rem;">
-          <tr><td>🔌 EV充電器</td><td><strong>300軒</strong></td><td>3-7 kW</td></tr>
-          <tr><td>🔋 蓄電池</td><td><strong>200軒</strong></td><td>5-13 kWh</td></tr>
-          <tr><td>❄️ エアコン</td><td><strong>700軒</strong></td><td>1-2.5 kW</td></tr>
-          <tr><td>🌡️ ヒートポンプ</td><td><strong>100軒</strong></td><td>1.5-3 kW</td></tr>
-        </table>
+  <h2>なぜ今のデータ共有では<span style="color:var(--red)">ダメ</span>なのか</h2>
+  <div class="cols" style="margin-top:1.2rem">
+    <div class="node node-dso">
+      <h3 style="color:var(--red)">DSO（配電事業者）</h3>
+      <p style="font-size:1rem">EV+ACの集中で系統が混雑。アグリゲーターにDR依頼したいが…</p>
+      <div class="card" style="margin-top:10px;padding:10px 14px;background:rgba(243,139,168,.05)">
+        <p style="font-size:.9rem;color:var(--red)">❌ 系統トポロジは企業秘密<br>❌ 渡したデータの使い方を制御できない<br>❌ 誰がアクセスしたか追跡できない</p>
       </div>
     </div>
-    <div style="flex:1">
-      <img src="../examples/output/01_feeder_overview.png" style="width:100%; border-radius:10px; border:1px solid var(--border);" alt="Feeder Overview">
-    </div>
-  </div>
-</div>
-
-<!-- ===== SLIDE 7: SECURITY ===== -->
-<div class="slide">
-  <h2>セキュリティ: 不正アクセスは全て遮断</h2>
-  <div class="cols" style="margin-top:1rem;">
-    <div style="flex:1; text-align:left;">
-      <div class="timeline">
-        <div class="tl-item tl-deny">
-          <h3>Spy → DSO制約データにアクセス</h3>
-          <p><span class="tag" style="background:var(--red);color:#000">DENIED</span> 契約がACTIVEではない (status=offered)</p>
-        </div>
-        <div class="tl-item tl-deny">
-          <h3>Spy → 系統トポロジにアクセス</h3>
-          <p><span class="tag" style="background:var(--red);color:#000">DENIED</span> 感度ティア違反 (HIGH データに unknown ロール)</p>
-        </div>
-        <div class="tl-item tl-ok">
-          <h3>Aggregator → 制約データにアクセス</h3>
-          <p><span class="tag" style="background:var(--green);color:#000">SUCCESS</span> ACTIVE契約 + 正しい目的 + MEDIUMティア</p>
-        </div>
-        <div class="tl-item tl-warn">
-          <h3>Aggregator → 同意撤回後にアクセス</h3>
-          <p><span class="tag" style="background:var(--red);color:#000">DENIED</span> 同意が即時撤回されていた</p>
-        </div>
-        <div class="tl-item tl-ok">
-          <h3>DSO → 緊急オーバーライド</h3>
-          <p><span class="tag" style="background:var(--yellow);color:#000">EMERGENCY</span> 系統安全のため特別アクセス（監査記録付き）</p>
-        </div>
-      </div>
-    </div>
-    <div style="flex:0.8">
-      <img src="../examples/output/02_security_audit.png" style="width:100%; border-radius:10px; border:1px solid var(--border);" alt="Security Audit">
-    </div>
-  </div>
-</div>
-
-<!-- ===== SLIDE 8: CONTRACT ===== -->
-<div class="slide">
-  <h2>契約交渉: データ交換の前提条件</h2>
-  <div class="flow" style="margin:1.5rem 0;">
-    <div class="flow-box" style="border-color:var(--yellow)">
-      <h3 style="color:var(--yellow)">OFFERED</h3>
-      <p class="small">Aggregator が提案</p>
-    </div>
-    <div class="flow-arrow">→</div>
-    <div class="flow-box" style="border-color:var(--mauve)">
-      <h3 style="color:var(--mauve)">NEGOTIATING</h3>
-      <p class="small">条件を摺り合わせ</p>
-    </div>
-    <div class="flow-arrow">→</div>
-    <div class="flow-box" style="border-color:var(--green)">
-      <h3 style="color:var(--green)">ACTIVE ✓</h3>
-      <p class="small">データ交換可能に</p>
-    </div>
-    <div class="flow-arrow">→</div>
-    <div class="flow-box" style="border-color:var(--muted)">
-      <h3 style="color:var(--muted)">EXPIRED</h3>
-      <p class="small">期限到来で終了</p>
-    </div>
-  </div>
-  <div class="card text-left" style="max-width:700px; margin-top:1rem;">
-    <h3>契約に含まれる条件</h3>
-    <table style="width:100%; font-size:0.95rem;">
-      <tr><td><strong>目的</strong></td><td><code>congestion_management</code></td><td>この目的以外では使用不可</td></tr>
-      <tr><td><strong>操作</strong></td><td><code>["read"]</code></td><td>読み取りのみ</td></tr>
-      <tr><td><strong>保持期間</strong></td><td><code>30日</code></td><td>30日後に削除義務</td></tr>
-      <tr><td><strong>再配布</strong></td><td><code>禁止</code></td><td>第三者に渡せない</td></tr>
-      <tr><td><strong>緊急時</strong></td><td><code>DSO override 可</code></td><td>系統緊急時はDSOが優先</td></tr>
-    </table>
-  </div>
-</div>
-
-<!-- ===== SLIDE 9: DR DISPATCH ===== -->
-<div class="slide">
-  <h2>DRディスパッチ: 1,000軒が系統を救う</h2>
-  <div class="cols" style="margin-top:0.5rem;">
-    <div style="flex:1.2">
-      <img src="../examples/output/03_dr_dispatch.png" style="width:100%; border-radius:10px; border:1px solid var(--border);" alt="DR Dispatch">
-    </div>
-    <div style="flex:0.8; text-align:left;">
-      <div class="card" style="margin-bottom:12px; border-left: 4px solid var(--green);">
-        <h3 style="color:var(--green)">結果</h3>
-        <p>ピーク: <strong>4,236 → 4,000 kW</strong></p>
-        <p>混雑率: <strong style="color:var(--red)">85%</strong> → <strong style="color:var(--green)">80%</strong></p>
-        <p>配信精度: <strong>94%</strong></p>
-      </div>
-      <div class="card" style="border-left: 4px solid var(--blue);">
-        <h3>デバイス別貢献</h3>
-        <table style="width:100%; font-size:0.9rem;">
-          <tr><td>🔌 EV スマート充電</td><td><strong>106 kW</strong></td></tr>
-          <tr><td>❄️ AC 設定+2℃</td><td><strong>59 kW</strong></td></tr>
-          <tr><td>🔋 蓄電池放電</td><td><strong>47 kW</strong></td></tr>
-          <tr><td>🌡️ HP 事前冷却シフト</td><td><strong>24 kW</strong></td></tr>
-        </table>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ===== SLIDE 10: PRIVACY ===== -->
-<div class="slide">
-  <h2>プライバシー: 目的がデータの形を決める</h2>
-  <div class="cols" style="margin-top:0.5rem;">
-    <div style="flex:1">
-      <img src="../examples/output/04_privacy.png" style="width:100%; border-radius:10px; border:1px solid var(--border);" alt="Privacy">
-    </div>
-    <div style="flex:0.8; text-align:left;">
-      <div class="card" style="margin-bottom:10px; border-left: 4px solid var(--red);">
-        <p style="font-size:1rem"><strong>生データ</strong>はプロシューマーノードから<strong>絶対に出ない</strong></p>
-      </div>
-      <table style="font-size:0.9rem; width:100%;">
-        <tr><th>目的</th><th>出力</th></tr>
-        <tr><td><code>research</code></td><td>統計値のみ (平均±σ)</td></tr>
-        <tr><td><code>dr_dispatch</code></td><td>制御マージン (1スカラー値)</td></tr>
-        <tr><td><code>billing</code></td><td>同意付き身元データ</td></tr>
-        <tr><td><code>forecasting</code></td><td>k-匿名化 (k=5)</td></tr>
-      </table>
-      <div class="card" style="margin-top:10px; border-left: 4px solid var(--yellow);">
-        <p style="font-size:0.95rem"><strong>同意撤回 = 即座に拒否</strong><br>
-        <span class="small">「そのうち反映」ではなく「この瞬間から」</span></p>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ===== SLIDE 11: GRID TOPOLOGY ===== -->
-<div class="slide">
-  <h2>系統トポロジと潮流計算</h2>
-  <div class="cols" style="margin-top:0.5rem;">
-    <div style="flex:1">
-      <img src="../examples/output/07_voltage_profile.png" style="width:100%; border-radius:10px; border:1px solid var(--border);" alt="Voltage Profile">
-    </div>
-    <div style="flex:0.8; text-align:left;">
-      <div class="card" style="margin-bottom:12px;">
-        <h3>系統構成</h3>
-        <p style="font-size:0.95rem">変電所 (66/6.6kV) → 2フィーダー<br>
-        → 250電柱 × <strong>4軒/柱</strong> = 1,000軒</p>
-      </div>
-      <div class="card" style="margin-bottom:12px; border-left:4px solid var(--red);">
-        <h3 style="color:var(--red)">問題: 末端の電圧低下</h3>
-        <p style="font-size:0.95rem">EV+ACの集中 → 末端電柱で<br>
-        <strong style="color:var(--red)">162柱が 0.95pu 以下に違反</strong></p>
-      </div>
-      <div class="card" style="border-left:4px solid var(--green);">
-        <h3 style="color:var(--green)">解決: データスペース経由DR</h3>
-        <p style="font-size:0.95rem">末端のEV/蓄電池/ACを制御<br>
-        → <strong>1,043 kW</strong> 削減<br>
-        → 違反 <strong>162 → 119</strong> (26%改善)</p>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ===== SLIDE 12: POLE DETAIL ===== -->
-<div class="slide">
-  <h2>電柱1本のデータ主権</h2>
-  <div style="width:95%; margin-top:0.5rem;">
-    <img src="../examples/output/09_pole_detail.png" style="width:100%; border-radius:10px; border:1px solid var(--border);" alt="Pole Detail">
-  </div>
-  <p style="margin-top:0.8rem; font-size:1.1rem;">
-    <strong>DSO</strong>は柱ごとの集約負荷のみ。<strong>Aggregator</strong>は柔軟性のみ。<strong>各家庭</strong>は自分だけ。
-  </p>
-</div>
-
-<!-- ===== SLIDE 13: WHAT EACH GETS ===== -->
-<div class="slide">
-  <h2>各参加者にとって何が嬉しいのか</h2>
-  <div class="cols" style="margin-top:1rem;">
-    <div class="card" style="border-top: 4px solid var(--red); text-align:left;">
-      <h3 style="color:var(--red)">DSO（ネットワーク側）</h3>
-      <ul style="font-size:1rem;">
-        <li><strong>系統トポロジを渡さず</strong>に混雑を解消できた</li>
-        <li>契約で<strong>目的を限定</strong>、再配布を禁止</li>
-        <li>緊急時は<strong>優先アクセス</strong>（監査付き）</li>
-        <li>全交換のSHA-256<strong>監査証跡</strong>が残る</li>
-        <li>N社との連携が<strong>個別API開発不要</strong></li>
-      </ul>
-      <p style="margin-top:12px; font-size:1.1rem; color:var(--green)"><strong>→ 安心してデータを出せるようになった</strong></p>
-    </div>
-    <div class="card" style="border-top: 4px solid var(--blue); text-align:left;">
+    <div class="node node-agg">
       <h3 style="color:var(--blue)">Aggregator</h3>
-      <ul style="font-size:1rem;">
-        <li><strong>フィーダー制約</strong>を取得でき最適なDR制御が可能に</li>
-        <li><strong>個別DER状態を隠した</strong>まま柔軟性を提供</li>
-        <li>契約で<strong>データ利用の権利を明確化</strong></li>
-        <li>カタログで<strong>新しいデータソースを自動発見</strong></li>
-        <li>複数DSOとの連携が<strong>スケーラブル</strong></li>
-      </ul>
-      <p style="margin-top:12px; font-size:1.1rem; color:var(--green)"><strong>→ 競争優位を守りながらサービスを拡大</strong></p>
+      <p style="font-size:1rem">最適なDR制御にはフィーダー制約が必要だが…</p>
+      <div class="card" style="margin-top:10px;padding:10px 14px;background:rgba(137,180,250,.05)">
+        <p style="font-size:.9rem;color:var(--blue)">❌ 個別DERの状態は競争優位<br>❌ 全デバイス情報をDSOに渡したくない<br>❌ 目的外利用されるリスク</p>
+      </div>
     </div>
-    <div class="card" style="border-top: 4px solid var(--peach); text-align:left;">
-      <h3 style="color:var(--peach)">需要家（Prosumer）</h3>
-      <ul style="font-size:1rem;">
-        <li><strong>生データが外に出ない</strong>（技術的に不可能）</li>
-        <li>目的ごとに<strong>自動匿名化</strong>される</li>
-        <li><strong>同意をいつでも即座に撤回</strong>可能</li>
-        <li>DR参加で<strong>電気代削減</strong>の恩恵</li>
-        <li>隣の家のデータは<strong>絶対に見えない</strong></li>
-      </ul>
-      <p style="margin-top:12px; font-size:1.1rem; color:var(--green)"><strong>→ 安心してDRに参加できるようになった</strong></p>
+    <div class="node node-pro">
+      <h3 style="color:var(--peach)">需要家 (1,000軒)</h3>
+      <p style="font-size:1rem">電気代削減でDR参加したいが…</p>
+      <div class="card" style="margin-top:10px;padding:10px 14px;background:rgba(250,179,135,.05)">
+        <p style="font-size:.9rem;color:var(--peach)">❌ メーターデータから生活パターンがバレる<br>❌ 同意を取り消しても反映されるか不安<br>❌ 隣の家にデータが見られたくない</p>
+      </div>
     </div>
   </div>
+  <p style="margin-top:1.2rem;font-size:1.2rem"><strong>→ 3者全員の要求を同時に満たす仕組みが必要</strong></p>
 </div>
 
-<!-- ===== SLIDE 14: BEFORE/AFTER ===== -->
+<!-- 3: SOLUTION -->
 <div class="slide">
-  <h2>Before / After データスペース</h2>
-  <div class="vs" style="margin-top:1.5rem;">
-    <div class="card bad" style="border-color:var(--red);">
-      <h3 style="color:var(--red)">BEFORE（従来のAPI連携）</h3>
-      <ul style="font-size:1rem;">
-        <li>データを渡したら<strong>制御不能</strong></li>
-        <li>目的外利用を<strong>技術的に防止できない</strong></li>
-        <li>同意は<strong>形式的なチェックボックス</strong></li>
-        <li>N社連携 = <strong>N×(N-1)/2 の個別開発</strong></li>
-        <li>監査は<strong>各社バラバラのログ</strong></li>
-        <li>不正アクセスの<strong>事後検知が困難</strong></li>
-      </ul>
+  <h2>解決策: <span style="color:var(--accent)">フェデレーテッド・データスペース</span></h2>
+  <p style="font-size:1.15rem;margin-bottom:1.5rem">データの<strong>主権を保持したまま</strong>、信頼された仕組みでデータを交換する</p>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;width:100%">
+    <div class="card" style="border-top:3px solid var(--green)">
+      <h3 style="color:var(--green);font-size:1.6rem;text-align:center">🔒</h3>
+      <h3 style="color:var(--green)">データは出ない</h3>
+      <p style="font-size:.9rem">実データは元のノードに留まる。共有されるのはメタデータのみ。</p>
     </div>
-    <div class="card good" style="border-color:var(--green);">
-      <h3 style="color:var(--green)">AFTER（データスペース）</h3>
-      <ul style="font-size:1rem;">
-        <li>契約で利用条件を<strong>機械的に強制</strong></li>
-        <li>目的外アクセスは<strong>自動拒否 + 監査記録</strong></li>
-        <li>同意撤回が<strong>即座に技術的に反映</strong></li>
-        <li>N社がデータスペースに<strong>参加するだけ</strong></li>
-        <li>全交換を<strong>SHA-256で改ざん検出</strong></li>
-        <li>不正アクセスも<strong>全て記録・追跡可能</strong></li>
-      </ul>
+    <div class="card" style="border-top:3px solid var(--blue)">
+      <h3 style="color:var(--blue);font-size:1.6rem;text-align:center">📝</h3>
+      <h3 style="color:var(--blue)">契約が必須</h3>
+      <p style="font-size:.9rem">全てのデータ交換に機械実行可能な利用契約が必要。</p>
+    </div>
+    <div class="card" style="border-top:3px solid var(--mauve)">
+      <h3 style="color:var(--mauve);font-size:1.6rem;text-align:center">🎯</h3>
+      <h3 style="color:var(--mauve)">目的を制限</h3>
+      <p style="font-size:.9rem">「混雑管理」で渡したデータは他の目的に技術的に使えない。</p>
+    </div>
+    <div class="card" style="border-top:3px solid var(--teal)">
+      <h3 style="color:var(--teal);font-size:1.6rem;text-align:center">🔍</h3>
+      <h3 style="color:var(--teal)">全て記録</h3>
+      <p style="font-size:.9rem">全交換をSHA-256ハッシュ付きで改ざん不可能な形で記録。</p>
     </div>
   </div>
 </div>
 
-<!-- ===== SLIDE 15: NUMBERS ===== -->
+<!-- 4: ANIMATED PROCESS -->
+<div class="slide" id="slide-process">
+  <h2>混雑管理プロセス <span style="color:var(--accent);font-size:1rem">(自動再生)</span></h2>
+  <div style="width:100%;max-width:900px;margin-top:.8rem">
+    <div class="process-step" data-step="0" style="margin-bottom:10px"><div class="sec-item" style="border-color:var(--yellow)"><div class="sec-icon sec-warn">1</div><div style="flex:1"><strong style="color:var(--red)">DSO: 混雑検出</strong><br><span style="font-size:.9rem">Feeder F-101 = 4,236kW / 5,000kW = <strong style="color:var(--red)">85%</strong> → アラート</span></div><div style="font-size:1.4rem">⚡</div></div></div>
+    <div class="process-step" data-step="1" style="margin-bottom:10px"><div class="sec-item" style="border-color:var(--teal)"><div class="sec-icon" style="background:rgba(148,226,213,.15);color:var(--teal)">2</div><div style="flex:1"><strong style="color:var(--teal)">カタログ登録</strong><br><span style="font-size:.9rem">DSO がフィーダー制約の<strong>メタデータ</strong>をカタログに公開（実データは DSO に残る）</span></div><div style="font-size:1.4rem">📋</div></div></div>
+    <div class="process-step" data-step="2" style="margin-bottom:10px"><div class="sec-item" style="border-color:var(--blue)"><div class="sec-icon" style="background:rgba(137,180,250,.15);color:var(--blue)">3</div><div style="flex:1"><strong style="color:var(--blue)">Aggregator: 発見 → 契約交渉</strong><br><span style="font-size:.9rem">カタログで制約データを発見 → OFFERED → NEGOTIATING → <strong style="color:var(--green)">ACTIVE</strong></span></div><div style="font-size:1.4rem">🤝</div></div></div>
+    <div class="process-step" data-step="3" style="margin-bottom:10px"><div class="sec-item" style="border-color:var(--red)"><div class="sec-icon sec-deny">!</div><div style="flex:1"><strong style="color:var(--red)">不正アクセス試行 → 遮断</strong><br><span style="font-size:.9rem">Spy が契約なしでアクセス → <span class="tag" style="background:var(--red);color:#000">DENIED</span> 監査ログに記録</span></div><div style="font-size:1.4rem">🛡️</div></div></div>
+    <div class="process-step" data-step="4" style="margin-bottom:10px"><div class="sec-item" style="border-color:var(--blue)"><div class="sec-icon" style="background:rgba(137,180,250,.15);color:var(--blue)">4</div><div style="flex:1"><strong style="color:var(--blue)">柔軟性エンベロープ提出</strong><br><span style="font-size:.9rem">EV 45% / AC 25% / 蓄電池 20% / HP 10% = <strong>966 kW</strong>（個別DER非開示）</span></div><div style="font-size:1.4rem">📊</div></div></div>
+    <div class="process-step" data-step="5" style="margin-bottom:10px"><div class="sec-item" style="border-color:var(--green)"><div class="sec-icon sec-ok">5</div><div style="flex:1"><strong style="color:var(--green)">DR ディスパッチ → 混雑解消!</strong><br><span style="font-size:.9rem">Kafka で 236kW 削減指令 → 4,236→4,000kW (<strong style="color:var(--green)">80%</strong>) 精度94%</span></div><div style="font-size:1.4rem">✅</div></div></div>
+    <div class="process-step" data-step="6" style="margin-bottom:10px"><div class="sec-item" style="border-color:var(--teal)"><div class="sec-icon" style="background:rgba(148,226,213,.15);color:var(--teal)">6</div><div style="flex:1"><strong style="color:var(--teal)">全交換を監査記録</strong><br><span style="font-size:.9rem">8エントリ: 5成功 + 3拒否 — 全てSHA-256ハッシュ付き</span></div><div style="font-size:1.4rem">📜</div></div></div>
+  </div>
+</div>
+
+<!-- 5: SECURITY -->
 <div class="slide">
-  <h2>デモの実績数値</h2>
-  <div class="cols" style="margin-top:2rem;">
-    <div class="stat"><div class="number" style="color:var(--blue)">1,000</div><div class="label">参加住宅数</div></div>
-    <div class="stat"><div class="number" style="color:var(--red)">4,236 kW</div><div class="label">ピーク負荷</div></div>
-    <div class="stat"><div class="number" style="color:var(--green)">236 kW</div><div class="label">DR削減量</div></div>
-    <div class="stat"><div class="number" style="color:var(--yellow)">94%</div><div class="label">配信精度</div></div>
-    <div class="stat"><div class="number" style="color:var(--teal)">8</div><div class="label">監査エントリ</div></div>
-  </div>
-  <div class="cols" style="margin-top:2rem;">
-    <div class="stat"><div class="number" style="color:var(--green)">5</div><div class="label">成功アクセス</div></div>
-    <div class="stat"><div class="number" style="color:var(--red)">3</div><div class="label">ブロック（spy + 同意撤回）</div></div>
-    <div class="stat"><div class="number" style="color:var(--mauve)">322</div><div class="label">テスト（全パス）</div></div>
-    <div class="stat"><div class="number" style="color:var(--yellow)">162→119</div><div class="label">電圧違反（26%改善）</div></div>
-    <div class="stat"><div class="number" style="color:var(--peach)">0</div><div class="label">生データ流出</div></div>
+  <h2>セキュリティ: 3重の防御</h2>
+  <div class="cols" style="margin-top:.8rem">
+    <div style="flex:1.1">
+      <div class="sec-item"><div class="sec-icon sec-deny">✗</div><div><strong>Spy → 制約データ</strong><br><span class="small">契約が OFFERED → <span class="tag" style="background:var(--red);color:#000">DENIED</span></span></div></div>
+      <div class="sec-item"><div class="sec-icon sec-deny">✗</div><div><strong>Spy → 系統トポロジ</strong><br><span class="small">感度 HIGH に unknown ロール → <span class="tag" style="background:var(--red);color:#000">DENIED</span></span></div></div>
+      <div class="sec-item"><div class="sec-icon sec-ok">✓</div><div><strong>Aggregator → 制約データ</strong><br><span class="small">ACTIVE契約 + 正しい目的 → <span class="tag" style="background:var(--green);color:#000">SUCCESS</span></span></div></div>
+      <div class="sec-item"><div class="sec-icon sec-deny">✗</div><div><strong>Aggregator → 同意撤回後</strong><br><span class="small">Prosumer が撤回 → <strong>即座に</strong> <span class="tag" style="background:var(--red);color:#000">DENIED</span></span></div></div>
+      <div class="sec-item"><div class="sec-icon sec-warn">⚡</div><div><strong>DSO → 緊急オーバーライド</strong><br><span class="small">系統安全 → <span class="tag" style="background:var(--yellow);color:#000">EMERGENCY</span> 特別監査</span></div></div>
+    </div>
+    <div style="flex:.7">
+      <div class="card" style="margin-bottom:12px;border-left:3px solid var(--accent)">
+        <h3>3重チェック</h3>
+        <p style="font-size:.9rem">① <strong>認証</strong>: mTLS + OIDC (JWT)<br>② <strong>認可</strong>: 契約 + 目的 + 感度ティア<br>③ <strong>監査</strong>: SHA-256ハッシュ記録</p>
+      </div>
+      <div class="card" style="border-left:3px solid var(--red)">
+        <h3 style="color:var(--red)">拒否も記録される</h3>
+        <p style="font-size:.9rem">不正アクセス試行を全記録。事後検知・調査が可能。</p>
+      </div>
+    </div>
   </div>
 </div>
 
-<!-- ===== SLIDE 16: APPLICATIONS ===== -->
+<!-- 6: PRIVACY -->
+<div class="slide" id="slide-privacy">
+  <h2>プライバシー: <span style="color:var(--peach)">目的</span>がデータの形を決める</h2>
+  <div class="cols" style="margin-top:.8rem">
+    <div style="flex:1">
+      <div class="card" style="margin-bottom:10px;padding:14px;border-left:3px solid var(--red)">
+        <p style="font-size:.95rem"><strong style="color:var(--red)">生データ</strong>はプロシューマーノードから<strong>絶対に出ない</strong>（技術的に不可能）</p>
+      </div>
+      <div id="privacy-bars">
+        <div class="bar-container"><div class="bar-label">research</div><div class="bar-track"><div class="bar-fill" data-width="20" style="background:var(--teal)"></div></div><div class="bar-value" style="color:var(--teal)">統計のみ</div></div>
+        <div class="bar-container"><div class="bar-label">dr_dispatch</div><div class="bar-track"><div class="bar-fill" data-width="10" style="background:var(--blue)"></div></div><div class="bar-value" style="color:var(--blue)">1スカラー</div></div>
+        <div class="bar-container"><div class="bar-label">forecasting</div><div class="bar-track"><div class="bar-fill" data-width="40" style="background:var(--mauve)"></div></div><div class="bar-value" style="color:var(--mauve)">k-匿名化</div></div>
+        <div class="bar-container"><div class="bar-label">billing</div><div class="bar-track"><div class="bar-fill" data-width="70" style="background:var(--yellow)"></div></div><div class="bar-value" style="color:var(--yellow)">同意付き</div></div>
+        <div class="bar-container"><div class="bar-label">生データ</div><div class="bar-track"><div class="bar-fill" data-width="100" style="background:var(--red)"></div></div><div class="bar-value" style="color:var(--red)">本人のみ</div></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:.75rem;color:var(--muted);margin-top:4px;padding:0 80px 0 118px">
+        <span>← プライバシー高</span><span>低 →</span>
+      </div>
+    </div>
+    <div style="flex:.7">
+      <div class="card" style="margin-bottom:10px">
+        <h3>匿名化パイプライン</h3>
+        <div style="font-size:.85rem;line-height:2">
+          <div>📥 生メーターデータ</div>
+          <div style="color:var(--muted)">　↓</div>
+          <div>🔐 同意チェック <span style="color:var(--red)">(なし→拒否)</span></div>
+          <div style="color:var(--muted)">　↓</div>
+          <div>🎯 目的→開示レベル解決</div>
+          <div style="color:var(--muted)">　↓</div>
+          <div>🔄 匿名化エンジン (k=5)</div>
+          <div style="color:var(--muted)">　↓</div>
+          <div>📤 変換済みデータ</div>
+        </div>
+      </div>
+      <div class="card" style="border-left:3px solid var(--yellow)">
+        <p style="font-size:.9rem"><strong>同意撤回 = 即座に拒否</strong><br><span class="small">「そのうち反映」ではなく「この瞬間から」</span></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 7: GRID TOPOLOGY -->
+<div class="slide">
+  <h2>系統トポロジと<span style="color:var(--accent)">潮流計算</span></h2>
+  <div class="cols" style="margin-top:.8rem">
+    <div style="flex:1">
+      <div class="card" style="margin-bottom:12px;padding:16px">
+        <h3>系統構成</h3>
+        <div style="font-size:.9rem;font-family:'SF Mono','Menlo',monospace;line-height:1.8;margin-top:8px">
+          <div>柏変電所 (66/6.6kV, 10MVA)</div>
+          <div style="color:var(--muted)">├── <span style="color:var(--red)">Feeder F-101</span> (2,500kW)</div>
+          <div style="color:var(--muted)">│　├── P-001 ── [H-001..004] <span style="color:var(--green)">● 1.02pu</span></div>
+          <div style="color:var(--muted)">│　├── <span style="color:var(--muted)">... (125 poles)</span></div>
+          <div style="color:var(--muted)">│　└── P-125 ── [H-497..500] <span style="color:var(--red)">● 0.90pu ⚠</span></div>
+          <div style="color:var(--muted)">└── <span style="color:var(--blue)">Feeder F-102</span> (2,500kW)</div>
+          <div style="color:var(--muted)">　　├── P-126 ── [H-501..504]</div>
+          <div style="color:var(--muted)">　　└── P-250 ── [H-997..1000] <span style="color:var(--red)">● 0.89pu ⚠</span></div>
+        </div>
+      </div>
+    </div>
+    <div style="flex:.8">
+      <div class="card" style="margin-bottom:10px;border-left:3px solid var(--red)">
+        <h3 style="color:var(--red)">問題: 末端の電圧低下</h3>
+        <p style="font-size:.9rem">EV+ACの集中 → フィーダー末端で</p>
+        <p style="font-size:1.5rem;font-weight:800;color:var(--red);margin:6px 0">162 柱が違反</p>
+        <p style="font-size:.85rem;color:var(--muted)">(電圧 < 0.95pu)</p>
+      </div>
+      <div class="card" style="border-left:3px solid var(--green)">
+        <h3 style="color:var(--green)">解決: データスペース経由DR</h3>
+        <p style="font-size:.9rem">末端のEV/蓄電池/ACを制御<br><strong>1,043 kW</strong> 削減</p>
+        <p style="font-size:1.3rem;font-weight:800;color:var(--green);margin:4px 0">162 → 119 (26%改善)</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 8: DATA SOVEREIGNTY -->
+<div class="slide">
+  <h2>電柱1本の<span style="color:var(--accent)">データ主権</span></h2>
+  <div class="cols" style="margin-top:.8rem">
+    <div style="flex:.5">
+      <div class="card" style="padding:16px;text-align:center">
+        <div style="font-size:.85rem;color:var(--yellow);margin-bottom:8px">Pole P-050 | V = 0.962pu</div>
+        <div style="font-size:2rem;margin-bottom:12px">🔌</div>
+        <div style="display:flex;gap:8px;justify-content:center">
+          <div class="card" style="padding:8px 12px;border-color:var(--peach);font-size:.8rem"><strong>H-197</strong><br>8.1kW<br><span style="color:var(--peach)">EV</span></div>
+          <div class="card" style="padding:8px 12px;border-color:var(--teal);font-size:.8rem"><strong>H-198</strong><br>2.6kW<br><span style="color:var(--teal)">PV</span></div>
+          <div class="card" style="padding:8px 12px;border-color:var(--teal);font-size:.8rem"><strong>H-199</strong><br>2.5kW<br><span style="color:var(--teal)">PV</span></div>
+          <div class="card" style="padding:8px 12px;border-color:var(--muted);font-size:.8rem"><strong>H-200</strong><br>5.3kW</div>
+        </div>
+      </div>
+    </div>
+    <div style="flex:1">
+      <div class="node node-dso" style="margin-bottom:10px">
+        <h3 style="color:var(--red)">🔴 DSO が見えるもの</h3>
+        <p style="font-size:.95rem">✓ Pole P-050: 合計 <strong>18.4 kW</strong> / 電圧 0.962pu<br>✓ 制御可能: <strong>7.2 kW</strong> (集約値)<br><span style="color:var(--red)">✗ 個別住宅の負荷 → 見えない<br>✗ 誰がEVを持っているか → 見えない</span></p>
+      </div>
+      <div class="node node-agg" style="margin-bottom:10px">
+        <h3 style="color:var(--blue)">🔵 Aggregator が見えるもの</h3>
+        <p style="font-size:.95rem">✓ 柔軟性: <strong>7.2 kW</strong> (エンベロープ)<br>✓ デバイス構成: EV 45%, Battery 20%…<br><span style="color:var(--blue)">✗ 系統トポロジ → 見えない<br>✗ 電圧値 → 見えない</span></p>
+      </div>
+      <div class="node node-pro">
+        <h3 style="color:var(--peach)">🟠 各住宅が見えるもの</h3>
+        <p style="font-size:.95rem">✓ 自分のメーターデータ (生) / 同意ダッシュボード<br><span style="color:var(--peach)">✗ 隣の家のデータ → 絶対に見えない</span></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 9: BENEFITS -->
+<div class="slide">
+  <h2>各参加者にとって<span style="color:var(--green)">何が嬉しい</span>のか</h2>
+  <div class="cols" style="margin-top:.8rem">
+    <div class="card" style="border-top:3px solid var(--red)">
+      <h3 style="color:var(--red)">🔴 DSO（ネットワーク側）</h3>
+      <ul style="font-size:.9rem"><li><strong>系統トポロジを渡さず</strong>に混雑解消</li><li>契約で目的限定、再配布禁止</li><li>緊急時は優先アクセス（監査付き）</li><li>N社連携が個別API開発不要</li></ul>
+      <div style="margin-top:8px;padding:8px;background:rgba(166,227,161,.1);border-radius:6px;text-align:center"><strong style="color:var(--green);font-size:.95rem">安心してデータを出せるようになった</strong></div>
+    </div>
+    <div class="card" style="border-top:3px solid var(--blue)">
+      <h3 style="color:var(--blue)">🔵 Aggregator</h3>
+      <ul style="font-size:.9rem"><li><strong>フィーダー制約</strong>取得で最適DR制御</li><li>個別DER状態を隠したまま柔軟性提供</li><li>カタログで新データソース自動発見</li><li>複数DSOとの連携がスケーラブル</li></ul>
+      <div style="margin-top:8px;padding:8px;background:rgba(166,227,161,.1);border-radius:6px;text-align:center"><strong style="color:var(--green);font-size:.95rem">競争優位を守りながらサービス拡大</strong></div>
+    </div>
+    <div class="card" style="border-top:3px solid var(--peach)">
+      <h3 style="color:var(--peach)">🟠 需要家 (1,000軒)</h3>
+      <ul style="font-size:.9rem"><li><strong>生データが外に出ない</strong>（技術的に不可能）</li><li>目的ごとに自動匿名化</li><li>同意をいつでも即座に撤回</li><li>DR参加で電気代削減</li></ul>
+      <div style="margin-top:8px;padding:8px;background:rgba(166,227,161,.1);border-radius:6px;text-align:center"><strong style="color:var(--green);font-size:.95rem">安心してDRに参加できるようになった</strong></div>
+    </div>
+  </div>
+</div>
+
+<!-- 10: NUMBERS -->
+<div class="slide" id="slide-numbers">
+  <h2>実績数値</h2>
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-top:2rem;width:100%">
+    <div class="stat"><div class="num" style="color:var(--blue)" data-count="1000">0</div><div class="lbl">参加住宅数</div></div>
+    <div class="stat"><div class="num" style="color:var(--red)" data-count="4236">0</div><div class="lbl">ピーク負荷 (kW)</div></div>
+    <div class="stat"><div class="num" style="color:var(--green)" data-count="236">0</div><div class="lbl">DR削減量 (kW)</div></div>
+    <div class="stat"><div class="num" style="color:var(--yellow)" data-count="94">0</div><div class="lbl">配信精度 (%)</div></div>
+    <div class="stat"><div class="num" style="color:var(--teal)" data-count="322">0</div><div class="lbl">テスト数 (全パス)</div></div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-top:2rem;width:100%">
+    <div class="stat"><div class="num" style="color:var(--green)" data-count="5">0</div><div class="lbl">成功アクセス</div></div>
+    <div class="stat"><div class="num" style="color:var(--red)" data-count="3">0</div><div class="lbl">ブロック数</div></div>
+    <div class="stat"><div class="num" style="color:var(--mauve)" data-count="8">0</div><div class="lbl">監査エントリ</div></div>
+    <div class="stat"><div class="num" style="color:var(--yellow)" data-count="162">0</div><div class="lbl">電圧違反 (Before)</div></div>
+    <div class="stat"><div class="num" style="color:var(--peach)">0</div><div class="lbl">生データ流出</div></div>
+  </div>
+</div>
+
+<!-- 11: APPLICATIONS -->
 <div class="slide">
   <h2>他分野への展開</h2>
-  <p style="margin-bottom:1rem;">コネクタの仕組みは<strong>汎用的</strong>。セマンティックモデルを差し替えるだけで応用可能。</p>
-  <div class="cols">
-    <div class="card" style="text-align:left;">
-      <h3>🏥 医療</h3>
-      <p style="font-size:0.95rem">病院 / 研究機関 / 患者<br>
-      匿名化臨床データの共有<br>
-      患者がスマホから同意撤回</p>
-    </div>
-    <div class="card" style="text-align:left;">
-      <h3>🏭 製造業</h3>
-      <p style="font-size:0.95rem">OEM / サプライヤー<br>
-      品質データの契約付き共有<br>
-      製造パラメータは非開示</p>
-    </div>
-    <div class="card" style="text-align:left;">
-      <h3>🚃 MaaS</h3>
-      <p style="font-size:0.95rem">鉄道 / バス / タクシー<br>
-      匿名化乗降統計の共有<br>
-      個人の移動履歴は保護</p>
-    </div>
-    <div class="card" style="text-align:left;">
-      <h3>🌾 農業</h3>
-      <p style="font-size:0.95rem">農家 / 流通 / 小売<br>
-      生産履歴トレーサビリティ<br>
-      産地偽装の検出</p>
-    </div>
+  <p style="margin-bottom:1rem;font-size:1rem">コネクタは<strong>汎用的</strong>。セマンティックモデルを差し替えるだけで応用可能。</p>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;width:100%">
+    <div class="card" style="border-top:3px solid var(--green)"><div style="font-size:1.6rem;text-align:center;margin-bottom:6px">🏥</div><h3 style="color:var(--green)">医療</h3><p style="font-size:.85rem">病院/研究機関/患者<br>匿名化臨床データ共有<br>患者が即座に同意撤回</p></div>
+    <div class="card" style="border-top:3px solid var(--blue)"><div style="font-size:1.6rem;text-align:center;margin-bottom:6px">🏭</div><h3 style="color:var(--blue)">製造業</h3><p style="font-size:.85rem">OEM/サプライヤー<br>品質データの契約付き共有<br>製造パラメータは非開示</p></div>
+    <div class="card" style="border-top:3px solid var(--mauve)"><div style="font-size:1.6rem;text-align:center;margin-bottom:6px">🚃</div><h3 style="color:var(--mauve)">MaaS</h3><p style="font-size:.85rem">鉄道/バス/タクシー<br>匿名化乗降統計の共有<br>個人移動履歴は保護</p></div>
+    <div class="card" style="border-top:3px solid var(--peach)"><div style="font-size:1.6rem;text-align:center;margin-bottom:6px">🌾</div><h3 style="color:var(--peach)">農業</h3><p style="font-size:.85rem">農家/流通/小売<br>生産履歴トレーサビリティ<br>産地偽装の検出</p></div>
   </div>
-  <p style="margin-top:1rem;" class="small">国際動向: GAIA-X, Catena-X (自動車), Manufacturing-X, European Health Data Space</p>
+  <div class="card" style="margin-top:14px;padding:12px 20px;text-align:center;border-color:var(--accent)"><p style="font-size:.9rem">国際動向: <strong>GAIA-X</strong> / <strong>Catena-X</strong> (自動車) / <strong>IEC 63417</strong> (エネルギー) / <strong>EHDS</strong> (医療)</p></div>
 </div>
 
-<!-- ===== SLIDE 17: TECH ===== -->
+<!-- 12: END -->
 <div class="slide">
-  <h2>技術スタック</h2>
-  <div class="cols" style="margin-top:1rem;">
-    <div class="text-left">
-      <table style="font-size:0.95rem;">
-        <tr><th>技術</th><th>用途</th></tr>
-        <tr><td><strong>Python 3.11+</strong></td><td>全コンポーネント</td></tr>
-        <tr><td><strong>FastAPI</strong></td><td>REST API</td></tr>
-        <tr><td><strong>Pydantic v2</strong></td><td>セマンティックモデル（実行可能な仕様）</td></tr>
-        <tr><td><strong>Keycloak 26.x</strong></td><td>OIDC認証基盤</td></tr>
-        <tr><td><strong>Kafka (KRaft)</strong></td><td>非同期イベントバス</td></tr>
-        <tr><td><strong>SQLite / PostgreSQL</strong></td><td>ローカルストア</td></tr>
-        <tr><td><strong>Docker Compose</strong></td><td>フルスタックオーケストレーション</td></tr>
-      </table>
-    </div>
-    <div class="text-left">
-      <div class="card" style="margin-bottom:12px;">
-        <h3>テスト</h3>
-        <p style="font-size:1rem"><strong>322テスト</strong>（226 unit + 96 integration）</p>
-        <p style="font-size:0.9rem">全てのセキュリティパターンをカバー</p>
-      </div>
-      <div class="card">
-        <h3>すぐ試せる</h3>
-        <p style="font-size:0.95rem"><code>make setup && make test</code></p>
-        <p style="font-size:0.95rem"><code>python examples/congestion_management_demo.py</code></p>
-      </div>
-    </div>
+  <div style="margin-bottom:2rem">
+    <div style="font-size:1rem;color:var(--accent);letter-spacing:3px;margin-bottom:12px">FEDERATED DATA SPACE</div>
+    <h1>Data Space Grid</h1>
+    <p style="font-size:1.3rem;margin-top:12px">信頼と主権を保ちながら<br>エネルギーデータを共有する</p>
   </div>
+  <div style="display:flex;gap:16px;margin-top:1.5rem">
+    <div class="card" style="padding:14px 20px;text-align:center"><div style="font-size:.75rem;color:var(--muted)">Live Demo</div><code style="font-size:.8rem">lutelute.github.io/data-space-grid</code></div>
+    <div class="card" style="padding:14px 20px;text-align:center"><div style="font-size:.75rem;color:var(--muted)">Repository</div><code style="font-size:.8rem">github.com/lutelute/data-space-grid</code></div>
+    <div class="card" style="padding:14px 20px;text-align:center"><div style="font-size:.75rem;color:var(--muted)">日本語解説書</div><code style="font-size:.8rem">docs/GUIDE_JA.md (20章)</code></div>
+  </div>
+  <p style="margin-top:1.5rem;font-size:.9rem;color:var(--muted)">MIT License — 誰でも利用・改変可能</p>
 </div>
 
-<!-- ===== SLIDE 18: THANK YOU ===== -->
-<div class="slide">
-  <h1>Data Space Grid</h1>
-  <p style="font-size:1.4rem; margin-top:1rem;">フェデレーテッド・データスペースで<br><strong>信頼と主権を保ちながら</strong>エネルギーデータを共有する</p>
-  <div style="margin-top:2.5rem;">
-    <p><code>github.com/lutelute/data-space-grid</code></p>
-    <p style="margin-top:1rem; font-size:1.1rem;">MIT License — 誰でも利用・改変可能</p>
-  </div>
-  <div style="margin-top:2rem;">
-    <p class="small">日本語解説書: <code>docs/GUIDE_JA.md</code> (20章, 1693行)</p>
-    <p class="small">デモ: <code>examples/congestion_management_demo.py</code></p>
-  </div>
-</div>
-
-<!-- ====== SLIDES END ====== -->
 <div class="progress"></div>
 <script>
-const slides = document.querySelectorAll('.slide');
-const progress = document.querySelector('.progress');
-let current = 0, animating = false;
-function go(i, dir) {
-  if (animating || i === current) return;
-  const next = Math.max(0, Math.min(i, slides.length - 1));
-  if (next === current) return;
-  animating = true;
-  const old = slides[current], nu = slides[next];
-  const fwd = dir === 'fwd';
-  old.classList.remove('active');
-  old.classList.add(fwd ? 'out-left' : 'out-right');
-  nu.style.animation = 'none'; nu.offsetHeight; nu.style.animation = '';
-  nu.classList.add('active');
-  nu.style.animationName = fwd ? 'slideIn' : 'slideInReverse';
-  setTimeout(() => { old.classList.remove('out-left','out-right'); nu.style.animationName = ''; animating = false; }, 300);
-  current = next;
-  progress.textContent = (current + 1) + ' / ' + slides.length;
+const slides=document.querySelectorAll('.slide'),progress=document.querySelector('.progress');
+let cur=0,anim=false;
+function go(i,dir){if(anim||i===cur)return;const n=Math.max(0,Math.min(i,slides.length-1));if(n===cur)return;anim=true;const o=slides[cur],nu=slides[n],fwd=dir==='fwd';o.classList.remove('active');o.classList.add(fwd?'out-left':'out-right');nu.style.animation='none';nu.offsetHeight;nu.style.animation='';nu.classList.add('active');nu.style.animationName=fwd?'slideIn':'slideInR';setTimeout(()=>{o.classList.remove('out-left','out-right');nu.style.animationName='';anim=false;onSlideEnter(n)},300);cur=n;progress.textContent=(cur+1)+' / '+slides.length}
+progress.textContent='1 / '+slides.length;
+document.addEventListener('keydown',e=>{if(['ArrowRight','l','j','n',' '].includes(e.key)){e.preventDefault();go(cur+1,'fwd')}else if(['ArrowLeft','h','k','p'].includes(e.key))go(cur-1,'bwd');else if(e.key==='g')go(0,'bwd');else if(e.key==='G')go(slides.length-1,'fwd')});
+function onSlideEnter(idx){const slide=slides[idx];
+  if(slide.id==='slide-process'){const steps=slide.querySelectorAll('.process-step');steps.forEach((s,i)=>{s.classList.remove('visible');setTimeout(()=>s.classList.add('visible'),400+i*500)})}
+  if(slide.id==='slide-privacy'){slide.querySelectorAll('.bar-fill').forEach(b=>{b.style.width='0';setTimeout(()=>b.style.width=b.dataset.width+'%',200)})}
+  if(slide.id==='slide-numbers'){slide.querySelectorAll('[data-count]').forEach(el=>{const target=parseInt(el.dataset.count);const dur=1200;const start=performance.now();function step(now){const p=Math.min((now-start)/dur,1);const ease=1-Math.pow(1-p,3);el.textContent=Math.round(target*ease).toLocaleString();if(p<1)requestAnimationFrame(step)}requestAnimationFrame(step)})}
 }
-progress.textContent = '1 / ' + slides.length;
-document.addEventListener('keydown', e => {
-  if (['ArrowRight','l','j','n',' '].includes(e.key)) { e.preventDefault(); go(current + 1, 'fwd'); }
-  else if (['ArrowLeft','h','k','p'].includes(e.key)) go(current - 1, 'bwd');
-  else if (e.key === 'g') go(0, 'bwd');
-  else if (e.key === 'G') go(slides.length - 1, 'fwd');
-});
 </script>
 </body>
 </html>
