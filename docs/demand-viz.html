@@ -2,561 +2,443 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<title>1000 Households — Live Demand Visualization</title>
+<title>Data Space Grid — 系統シミュレーション</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#0a0a14;color:#cdd6f4;font-family:'SF Mono','Menlo',monospace;overflow:hidden}
+body{background:#080814;color:#cdd6f4;font-family:'Helvetica Neue','Hiragino Kaku Gothic ProN',sans-serif;overflow:hidden}
 canvas{display:block}
-#hud{position:fixed;top:20px;left:30px;z-index:10;pointer-events:none}
-#hud h1{font-size:1.4rem;color:#00d2ff;margin-bottom:4px}
-#hud .sub{font-size:0.8rem;color:#6c7086;margin-bottom:12px}
-#stats{position:fixed;top:20px;right:30px;z-index:10;text-align:right;pointer-events:none}
-#stats .val{font-size:2rem;font-weight:800;line-height:1.1}
-#stats .lbl{font-size:0.7rem;color:#6c7086;margin-bottom:8px}
-#timeline{position:fixed;bottom:30px;left:30px;right:30px;z-index:10;pointer-events:none}
-#timeline .time{font-size:1.8rem;font-weight:800;color:#f9e2af}
-#timeline .event{font-size:0.9rem;color:#a6e3a1;margin-top:4px;min-height:1.2em}
-#legend{position:fixed;bottom:30px;right:30px;z-index:10;text-align:right;pointer-events:none}
-#legend div{font-size:0.75rem;margin-bottom:3px}
-#controls{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:20;
-  background:rgba(10,10,20,0.95);border:1px solid #2a2a4a;border-radius:16px;padding:40px 60px;text-align:center}
-#controls h2{font-size:1.6rem;color:#00d2ff;margin-bottom:12px}
-#controls p{color:#6c7086;margin-bottom:20px;font-size:0.9rem}
-#controls button{background:#00d2ff;color:#0a0a14;border:none;padding:14px 40px;border-radius:8px;
-  font-size:1.1rem;font-weight:700;cursor:pointer;font-family:inherit}
-#controls button:hover{background:#33ddff}
+#hud{position:fixed;top:16px;left:24px;z-index:10;pointer-events:none}
+#hud h1{font-size:1.2rem;color:#00d2ff;margin-bottom:2px}
+#hud .sub{font-size:.72rem;color:#6c7086}
+#clock{position:fixed;top:16px;right:24px;z-index:10;text-align:right;pointer-events:none}
+#clock .time{font-size:2.2rem;font-weight:800;color:#f9e2af;font-family:'SF Mono',monospace}
+#clock .date{font-size:.75rem;color:#6c7086}
+#panel{position:fixed;top:70px;right:16px;width:260px;z-index:10;pointer-events:none}
+.pcard{background:rgba(14,14,30,.92);border:1px solid #252545;border-radius:10px;padding:12px 14px;margin-bottom:8px}
+.pcard h3{font-size:.72rem;color:#6c7086;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.pval{font-size:1.5rem;font-weight:800;line-height:1}
+.prow{display:flex;justify-content:space-between;font-size:.8rem;padding:2px 0}
+.pbar{height:6px;background:#1a1a30;border-radius:3px;margin-top:4px;overflow:hidden}
+.pbar-fill{height:100%;border-radius:3px;transition:width .5s}
+#event-bar{position:fixed;bottom:16px;left:24px;right:24px;z-index:10;pointer-events:none}
+#event-bar .msg{font-size:.9rem;color:#a6e3a1;min-height:1.2em}
+#legend-bar{position:fixed;bottom:16px;right:24px;z-index:10;pointer-events:none;text-align:right}
+#legend-bar div{font-size:.65rem;margin-bottom:1px}
+#start-screen{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:rgba(8,8,20,.97)}
+#start-screen .inner{text-align:center;max-width:520px}
+#start-screen h2{font-size:1.8rem;color:#00d2ff;margin-bottom:8px}
+#start-screen p{color:#6c7086;font-size:.9rem;margin-bottom:20px;line-height:1.6}
+#start-screen button{background:#00d2ff;color:#080814;border:none;padding:14px 40px;border-radius:8px;font-size:1.1rem;font-weight:700;cursor:pointer}
+#start-screen button:hover{background:#33ddff}
 .hidden{display:none!important}
 </style>
 </head>
 <body>
-<div id="controls">
-  <h2>1,000 Households × 24 Hours</h2>
-  <p>フィーダー F-101 の 1000 軒のデマンドをリアルタイムに可視化<br>
-  EV充電・エアコン・蓄電池・ヒートポンプが織りなす負荷の波</p>
-  <button onclick="start()">START</button>
+<div id="start-screen">
+  <div class="inner">
+    <h2>配電系統シミュレーション</h2>
+    <p>柏変電所 → 2フィーダー → 250電柱 → 1,000軒<br>
+    夏の午後、EV充電とエアコンで混雑が発生。<br>
+    データスペースを通じてDRで解消する過程をリアルタイムで表示。</p>
+    <button onclick="startSim()">START</button>
+  </div>
 </div>
 <div id="hud" class="hidden">
-  <h1>Feeder F-101 — Live Demand</h1>
-  <div class="sub">1,000 Households | 250 Poles | 2 Feeders | Rated 5 MW</div>
+  <h1>柏変電所 — 配電系統</h1>
+  <div class="sub">66/6.6kV 10MVA | 2 Feeders | 250 Poles | 1,000 Houses</div>
 </div>
-<div id="stats" class="hidden">
-  <div class="val" id="s-load" style="color:#89b4fa">0 kW</div>
-  <div class="lbl">TOTAL LOAD</div>
-  <div class="val" id="s-pct" style="color:#a6e3a1">0%</div>
-  <div class="lbl">CAPACITY</div>
-  <div class="val" id="s-ctrl" style="color:#94e2d5">0 kW</div>
-  <div class="lbl">CONTROLLABLE</div>
-  <div class="val" id="s-dr" style="color:#6c7086">—</div>
-  <div class="lbl">DR STATUS</div>
-</div>
-<div id="timeline" class="hidden">
+<div id="clock" class="hidden">
   <div class="time" id="t-clock">00:00</div>
-  <div class="event" id="t-event"></div>
+  <div class="date">2026年8月15日（金）</div>
 </div>
-<div id="legend" class="hidden">
-  <div><span style="color:#fab387">■</span> EV Charging (300)</div>
-  <div><span style="color:#89b4fa">■</span> AC Load (700)</div>
-  <div><span style="color:#a6e3a1">■</span> Battery (200)</div>
-  <div><span style="color:#cba6f7">■</span> Heat Pump (100)</div>
-  <div><span style="color:#f38ba8">━</span> Feeder Limit (5 MW)</div>
-  <div style="margin-top:6px"><span style="color:#f9e2af">━</span> Aggregate Load</div>
+<div id="panel" class="hidden">
+  <div class="pcard">
+    <h3>Total Load</h3>
+    <div class="pval" id="p-load" style="color:#f9e2af">0 kW</div>
+    <div class="pbar"><div class="pbar-fill" id="p-load-bar" style="background:#f9e2af;width:0"></div></div>
+    <div class="prow" style="margin-top:4px"><span>0</span><span style="color:#ff6b6b">Limit: 5,000 kW</span></div>
+  </div>
+  <div class="pcard">
+    <h3>Feeder F-101</h3>
+    <div class="prow"><span>Load</span><span id="p-f1-load" style="color:#ff6b6b">0 kW</span></div>
+    <div class="prow"><span>Min Voltage</span><span id="p-f1-v">1.00 pu</span></div>
+    <div class="prow"><span>Violations</span><span id="p-f1-viol" style="color:#ff6b6b">0</span></div>
+  </div>
+  <div class="pcard">
+    <h3>Feeder F-102</h3>
+    <div class="prow"><span>Load</span><span id="p-f2-load" style="color:#74c0fc">0 kW</span></div>
+    <div class="prow"><span>Min Voltage</span><span id="p-f2-v">1.00 pu</span></div>
+    <div class="prow"><span>Violations</span><span id="p-f2-viol" style="color:#74c0fc">0</span></div>
+  </div>
+  <div class="pcard" id="p-dr" style="display:none">
+    <h3>DR Status</h3>
+    <div class="pval" id="p-dr-status" style="color:#51cf66">—</div>
+    <div class="prow"><span>Reduction</span><span id="p-dr-kw">0 kW</span></div>
+    <div class="prow"><span>Accuracy</span><span id="p-dr-acc">—</span></div>
+  </div>
+  <div class="pcard" id="p-sec" style="display:none">
+    <h3>Security</h3>
+    <div class="prow"><span style="color:#51cf66">✓ Granted</span><span id="p-sec-ok">0</span></div>
+    <div class="prow"><span style="color:#ff6b6b">✗ Denied</span><span id="p-sec-no">0</span></div>
+  </div>
+</div>
+<div id="event-bar" class="hidden"><div class="msg" id="event-msg"></div></div>
+<div id="legend-bar" class="hidden">
+  <div><span style="color:#51cf66">●</span> V ≥ 0.97pu</div>
+  <div><span style="color:#fcc419">●</span> 0.95-0.97pu</div>
+  <div><span style="color:#ff6b6b">●</span> V &lt; 0.95pu</div>
+  <div style="margin-top:3px"><span style="color:#ffa94d">■</span> EV <span style="color:#74c0fc">■</span> AC <span style="color:#51cf66">■</span> Batt <span style="color:#b197fc">■</span> HP</div>
 </div>
 <canvas id="c"></canvas>
 <script>
-const C = document.getElementById('c');
-const ctx = C.getContext('2d');
-let W, H;
-function resize() { W = C.width = innerWidth; H = C.height = innerHeight; }
-resize();
-addEventListener('resize', resize);
+const C=document.getElementById('c'),ctx=C.getContext('2d');
+let W,H;function resize(){W=C.width=innerWidth;H=C.height=innerHeight}resize();addEventListener('resize',resize);
 
-// ── Config ──
-const N = 1000;
-const FEEDER_LIMIT = 5000;
-const STEPS = 96; // 15-min intervals over 24h
-const SPEED = 120; // ms per step (fast forward)
-
-// ── Generate 1000 households ──
+// ── Deterministic RNG ──
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t^=t+Math.imul(t^t>>>7,61|t);return((t^t>>>14)>>>0)/4294967296}}
-const rng = mulberry32(42);
-const rand = () => rng();
-const randn = (mu, sigma) => { let u=0,v=0; while(!u)u=rand(); while(!v)v=rand(); return mu + sigma * Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); };
+const rng=mulberry32(42),rand=()=>rng(),randn=(m,s)=>{let u=0,v=0;while(!u)u=rand();while(!v)v=rand();return m+s*Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)};
 
-const houses = [];
-for (let i = 0; i < N; i++) {
-  const hasEV = i < 300;
-  const hasAC = i < 700;
-  const hasBatt = i >= 300 && i < 500;
-  const hasHP = i >= 900;
-
-  const baseScale = Math.max(0.3, randn(1, 0.25));
-  const evPower = hasEV ? [3, 5, 6, 7, 11][Math.floor(rand()*5)] : 0;
-  const evStart = randn(16.5, 1.2);
-  const acPower = hasAC ? randn(1.8, 0.5) : 0;
-  const hpPower = hasHP ? randn(2.2, 0.5) : 0;
-  const battCap = hasBatt ? randn(9, 3) : 0;
-
-  // Pre-compute load curve
-  const loads = new Float32Array(STEPS);
-  const types = new Uint8Array(STEPS); // dominant type for color
-  for (let t = 0; t < STEPS; t++) {
-    const h = t * 0.25; // hour
-    let base = (1.5 + 0.8 * Math.sin(Math.PI * (h - 6) / 12)) * baseScale;
-    base = Math.max(0.3, base) + randn(0, 0.15);
-
-    let ev = 0;
-    if (hasEV && evPower > 0) {
-      ev = evPower * Math.exp(-0.5 * ((h - evStart) / 1.5) ** 2);
-      if (ev < 0.1) ev = 0;
+// ── Build grid: 2 feeders × 125 poles × 4 houses ──
+const POLES_PER_FEEDER=125,HOUSES_PER_POLE=4,N_FEEDERS=2;
+const feeders=[];
+for(let fi=0;fi<N_FEEDERS;fi++){
+  const poles=[];
+  for(let pi=0;pi<POLES_PER_FEEDER;pi++){
+    const houses=[];
+    for(let hi=0;hi<HOUSES_PER_POLE;hi++){
+      const idx=fi*POLES_PER_FEEDER*HOUSES_PER_POLE+pi*HOUSES_PER_POLE+hi;
+      const hasEV=idx<300,hasAC=idx<700,hasBatt=idx>=300&&idx<500,hasHP=idx>=900;
+      houses.push({hasEV,hasAC,hasBatt,hasHP,
+        baseScale:Math.max(.3,randn(1,.25)),
+        evPow:hasEV?[3,5,6,7,11][Math.floor(rand()*5)]:0,
+        evStart:randn(16.5,1.2),
+        acPow:hasAC?randn(1.8,.5):0,
+        hpPow:hasHP?randn(2.2,.5):0,
+        battCap:hasBatt?randn(9,3):0,
+        load:0,drReduce:0
+      });
     }
-
-    let ac = 0;
-    if (hasAC && h >= 12 && h < 18) {
-      ac = acPower * (0.6 + 0.4 * rand());
-    }
-
-    let hp = 0;
-    if (hasHP && h >= 11 && h < 17) {
-      hp = hpPower * (0.5 + 0.5 * rand());
-    }
-
-    loads[t] = Math.max(0.2, base + ev + ac + hp);
-
-    // Dominant type for color
-    if (ev > ac && ev > hp) types[t] = 1; // EV
-    else if (ac > hp) types[t] = 2; // AC
-    else if (hp > 0) types[t] = 4; // HP
-    else types[t] = 0; // base
+    poles.push({houses,voltage:1.0,x:0,y:0});
   }
-
-  houses.push({
-    loads, types, hasEV, hasAC, hasBatt, hasHP,
-    evPower, acPower, hpPower, battCap, evStart,
-    x: rand() * 0.8 + 0.1, // random position for particle view
-    y: rand() * 0.6 + 0.2,
-    drReduction: 0,
-  });
+  feeders.push({poles,totalLoad:0,minV:1.0,violations:0});
 }
 
-// ── DR logic ──
-let drActive = false;
-let drStartStep = -1;
-function applyDR(step) {
-  const h = step * 0.25;
-  if (h < 14 || h > 19) return 0;
-
-  let totalReduction = 0;
-  const rampFactor = h < 14.5 ? (h - 14) / 0.5 : h > 18.5 ? (19 - h) / 0.5 : 1;
-
-  for (const house of houses) {
-    let reduction = 0;
-    // EV: shift charging
-    if (house.hasEV && house.evPower > 0) {
-      const evLoad = house.evPower * Math.exp(-0.5 * ((h - house.evStart) / 1.5) ** 2);
-      reduction += evLoad * 0.7 * rampFactor;
+// ── Compute loads at time h ──
+function computeLoads(h,drActive){
+  for(const f of feeders){
+    f.totalLoad=0;f.minV=1.02;f.violations=0;
+    // Voltage drop calculation
+    let v=1.02;
+    for(let pi=0;pi<f.poles.length;pi++){
+      const p=f.poles[pi];let poleLoad=0;
+      for(const house of p.houses){
+        let base=(1.5+.8*Math.sin(Math.PI*(h-6)/12))*house.baseScale;
+        base=Math.max(.3,base);
+        let ev=0;if(house.hasEV&&house.evPow>0)ev=house.evPow*Math.exp(-.5*((h-house.evStart)/1.5)**2);
+        let ac=0;if(house.hasAC&&h>=12&&h<18)ac=house.acPow*(.6+.4*rand());
+        let hp=0;if(house.hasHP&&h>=11&&h<17)hp=house.hpPow*(.5+.5*rand());
+        house.load=Math.max(.2,base+ev+ac+hp);
+        // DR reduction
+        house.drReduce=0;
+        if(drActive&&h>=14&&h<=19){
+          const ramp=h<14.5?(h-14)/.5:h>18.5?(19-h)/.5:1;
+          if(house.hasEV&&ev>0)house.drReduce+=ev*.7*ramp;
+          if(house.hasAC&&ac>0)house.drReduce+=ac*.25*ramp;
+          if(house.hasBatt)house.drReduce+=Math.min(3,house.battCap*.3)*ramp;
+        }
+        const net=Math.max(.1,house.load-house.drReduce);
+        poleLoad+=net;
+      }
+      // Simplified voltage drop
+      const downstreamKW=f.poles.slice(pi).reduce((s,pp)=>s+pp.houses.reduce((s2,hh)=>s2+Math.max(.1,hh.load-hh.drReduce),0),0);
+      const vDrop=downstreamKW*.000008;// simplified
+      v=Math.max(.85,v-vDrop);
+      p.voltage=v;
+      if(v<.95)f.violations++;
+      if(v<f.minV)f.minV=v;
+      f.totalLoad+=poleLoad;
     }
-    // AC: raise setpoint
-    if (house.hasAC && h >= 12 && h < 18) {
-      reduction += house.acPower * 0.25 * rampFactor;
-    }
-    // Battery: discharge
-    if (house.hasBatt) {
-      reduction += Math.min(3, house.battCap * 0.3) * rampFactor;
-    }
-    house.drReduction = reduction;
-    totalReduction += reduction;
   }
-  return totalReduction;
 }
 
-// ── Aggregate computation ──
-function getAggregate(step) {
-  let total = 0, ctrl = 0;
-  for (const h of houses) {
-    let load = h.loads[step] - (drActive ? h.drReduction : 0);
-    total += Math.max(0.1, load);
-    ctrl += h.drReduction || 0;
+// ── Layout poles on screen ──
+function layoutPoles(){
+  const cx=W*.38,cy=H*.48;
+  const subX=cx,subY=cy-H*.38;
+  for(let fi=0;fi<N_FEEDERS;fi++){
+    const f=feeders[fi];
+    const angle0=fi===0?Math.PI*.55:Math.PI*.45;// left / right
+    const spreadX=fi===0?-1:1;
+    for(let pi=0;pi<f.poles.length;pi++){
+      const t=pi/f.poles.length;
+      // Feeder runs down and out
+      const px=subX+spreadX*(30+t*W*.28)+Math.sin(t*4)*15;
+      const py=subY+40+t*(H*.72);
+      f.poles[pi].x=px;f.poles[pi].y=py;
+    }
   }
-  return { total, ctrl };
-}
-
-// ── History for waveform ──
-const history = [];
-const historyDR = [];
-
-// ── Particle system for feeder visualization ──
-const particles = [];
-function spawnParticle(x, y, color, vx, vy, life) {
-  particles.push({ x, y, color, vx, vy, life, maxLife: life, size: 1 + rand() * 2 });
-}
-
-// ── Events ──
-const events = [
-  [0, '🌙 深夜 — ベース負荷のみ'],
-  [24, '🌅 早朝 — 住宅が起床し始める'],
-  [36, '☀️ 午前 — 太陽光発電がピーク'],
-  [48, '🔥 正午 — エアコンが起動開始'],
-  [52, '⚡ 13:00 — EV帰宅・充電開始'],
-  [56, '🔴 14:00 — DSO: 混雑検出! DR発動!', true],
-  [60, '⚡ 15:00 — DR制御中: EV充電シフト・蓄電池放電'],
-  [64, '📉 16:00 — 負荷ピーク → DR で抑制中'],
-  [68, '✅ 17:00 — 混雑解消! 85% → 80%'],
-  [72, '🔵 18:00 — DRランプダウン開始'],
-  [76, '🌆 19:00 — DR終了、通常運転に復帰'],
-  [84, '🌙 21:00 — 負荷が低下し始める'],
-  [92, '💤 23:00 — 深夜に向けて低負荷'],
-];
-
-// ── Animation state ──
-let step = 0;
-let running = false;
-let lastTime = 0;
-let accumulator = 0;
-let currentEvent = '';
-let drTotalReduction = 0;
-
-// ── Colors ──
-const COLORS = {
-  ev: '#fab387',
-  ac: '#89b4fa',
-  batt: '#a6e3a1',
-  hp: '#cba6f7',
-  base: '#45475a',
-  limit: '#f38ba8',
-  agg: '#f9e2af',
-  dr: '#a6e3a1',
-  bg: '#0a0a14',
-};
-
-function typeColor(type) {
-  return [COLORS.base, COLORS.ev, COLORS.ac, COLORS.batt, COLORS.hp][type] || COLORS.base;
+  return{subX,subY};
 }
 
 // ── Drawing ──
-function draw() {
-  ctx.fillStyle = COLORS.bg;
-  ctx.fillRect(0, 0, W, H);
+const COL={ev:'#ffa94d',ac:'#74c0fc',batt:'#51cf66',hp:'#b197fc',base:'#3a3a5a',
+  ok:'#51cf66',warn:'#fcc419',bad:'#ff6b6b',line:'#1e1e40',bg:'#080814',sub:'#f9e2af'};
 
-  const h = step * 0.25;
-  const marginL = 80, marginR = 60, marginT = 80, marginB = 100;
-  const gW = W - marginL - marginR;
-  const gH = H - marginT - marginB;
+function voltColor(v){return v>=.97?COL.ok:v>=.95?COL.warn:COL.bad}
 
-  // ── Background grid ──
-  ctx.strokeStyle = '#1a1a2e';
-  ctx.lineWidth = 1;
-  for (let i = 0; i <= 6; i++) {
-    const y = marginT + (i / 6) * gH;
-    ctx.beginPath();
-    ctx.moveTo(marginL, y);
-    ctx.lineTo(W - marginR, y);
-    ctx.stroke();
-    // Label
-    ctx.fillStyle = '#45475a';
-    ctx.font = '11px monospace';
-    ctx.textAlign = 'right';
-    ctx.fillText(((6 - i) / 6 * FEEDER_LIMIT * 1.2).toFixed(0) + ' kW', marginL - 8, y + 4);
-  }
-  // Time axis
-  for (let t = 0; t <= 24; t += 3) {
-    const x = marginL + (t / 24) * gW;
-    ctx.beginPath();
-    ctx.moveTo(x, marginT);
-    ctx.lineTo(x, marginT + gH);
-    ctx.stroke();
-    ctx.fillStyle = '#45475a';
-    ctx.textAlign = 'center';
-    ctx.font = '11px monospace';
-    ctx.fillText(String(t).padStart(2, '0') + ':00', x, marginT + gH + 18);
-  }
+function draw(h,drActive,sub){
+  ctx.fillStyle=COL.bg;ctx.fillRect(0,0,W,H);
+  // Background grid
+  ctx.strokeStyle='#0e0e20';ctx.lineWidth=1;
+  for(let i=0;i<W;i+=60){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,H);ctx.stroke()}
+  for(let i=0;i<H;i+=60){ctx.beginPath();ctx.moveTo(0,i);ctx.lineTo(W,i);ctx.stroke()}
 
-  // ── Individual household lines (the impressive part) ──
-  const maxLoad = FEEDER_LIMIT * 1.2;
-  const visibleSteps = Math.min(step + 1, STEPS);
+  // Substation
+  const {subX,subY}=sub;
+  ctx.fillStyle='#1a1a30';ctx.strokeStyle=COL.sub;ctx.lineWidth=2;
+  roundRect(ctx,subX-40,subY-20,80,40,8);ctx.fill();ctx.stroke();
+  ctx.fillStyle=COL.sub;ctx.font='bold 11px sans-serif';ctx.textAlign='center';
+  ctx.fillText('柏変電所',subX,subY-4);ctx.font='9px sans-serif';ctx.fillText('66/6.6kV',subX,subY+10);
 
-  // Draw each household as a thin translucent line
-  for (let i = 0; i < N; i++) {
-    const house = houses[i];
-    ctx.beginPath();
-    ctx.lineWidth = 0.3;
-    ctx.globalAlpha = 0.15;
+  // Feeders
+  const feederColors=[COL.bad,'#74c0fc'];
+  const feederLabels=['F-101','F-102'];
+  for(let fi=0;fi<N_FEEDERS;fi++){
+    const f=feeders[fi];
+    // Draw feeder trunk line
+    ctx.beginPath();ctx.strokeStyle=feederColors[fi];ctx.lineWidth=2;ctx.globalAlpha=.3;
+    ctx.moveTo(subX,subY+20);
+    for(const p of f.poles)ctx.lineTo(p.x,p.y);
+    ctx.stroke();ctx.globalAlpha=1;
 
-    for (let s = 0; s < visibleSteps; s++) {
-      let load = house.loads[s];
-      if (drActive && s >= drStartStep) {
-        const drH = s * 0.25;
-        if (drH >= 14 && drH <= 19) {
-          load = Math.max(0.1, load - house.drReduction);
+    // Feeder label
+    if(f.poles.length>0){
+      const lp=f.poles[2];
+      ctx.fillStyle=feederColors[fi];ctx.font='bold 10px sans-serif';ctx.textAlign='center';
+      ctx.fillText(feederLabels[fi],lp.x,lp.y-12);
+    }
+
+    // Draw poles (every Nth for clarity at smaller screens, all at larger)
+    const step=W<1200?4:2;
+    for(let pi=0;pi<f.poles.length;pi+=step){
+      const p=f.poles[pi];
+      const vc=voltColor(p.voltage);
+      const poleLoad=p.houses.reduce((s,hh)=>s+Math.max(.1,hh.load-hh.drReduce),0);
+      const size=Math.min(6,2+poleLoad/8);
+
+      // Pole dot
+      ctx.beginPath();ctx.arc(p.x,p.y,size,0,Math.PI*2);
+      ctx.fillStyle=vc;ctx.globalAlpha=.7;ctx.fill();ctx.globalAlpha=1;
+
+      // Glow for violations
+      if(p.voltage<.95){
+        ctx.beginPath();ctx.arc(p.x,p.y,size+4,0,Math.PI*2);
+        ctx.fillStyle='rgba(255,107,107,.15)';ctx.fill();
+      }
+
+      // Houses around pole (tiny dots)
+      if(step<=2||pi%8===0){
+        for(let hi=0;hi<p.houses.length;hi++){
+          const hh=p.houses[hi];
+          const a=hi/p.houses.length*Math.PI*2;
+          const hx=p.x+Math.cos(a)*(size+6);
+          const hy=p.y+Math.sin(a)*(size+6);
+          const hc=hh.hasEV?COL.ev:hh.hasBatt?COL.batt:hh.hasHP?COL.hp:hh.hasAC?COL.ac:COL.base;
+          const intensity=Math.min(1,(hh.load-hh.drReduce)/8);
+          ctx.globalAlpha=.3+intensity*.7;
+          ctx.fillStyle=hc;
+          ctx.fillRect(hx-1.5,hy-1.5,3,3);
         }
+        ctx.globalAlpha=1;
       }
-      const x = marginL + (s / STEPS) * gW;
-      const y = marginT + gH - (load / maxLoad) * gH;
-      if (s === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
 
-    const color = house.hasEV ? COLORS.ev : house.hasBatt ? COLORS.batt : house.hasHP ? COLORS.hp : house.hasAC ? COLORS.ac : COLORS.base;
-    ctx.strokeStyle = color;
-    ctx.stroke();
-  }
-  ctx.globalAlpha = 1;
-
-  // ── Aggregate line ──
-  if (history.length > 1) {
-    // Fill under aggregate
-    ctx.beginPath();
-    ctx.moveTo(marginL, marginT + gH);
-    for (let s = 0; s < history.length; s++) {
-      const x = marginL + (s / STEPS) * gW;
-      const y = marginT + gH - (history[s] / maxLoad) * gH;
-      ctx.lineTo(x, y);
-    }
-    ctx.lineTo(marginL + ((history.length - 1) / STEPS) * gW, marginT + gH);
-    ctx.closePath();
-    const grad = ctx.createLinearGradient(0, marginT, 0, marginT + gH);
-    grad.addColorStop(0, 'rgba(249,226,175,0.15)');
-    grad.addColorStop(1, 'rgba(249,226,175,0)');
-    ctx.fillStyle = grad;
-    ctx.fill();
-
-    // Aggregate line
-    ctx.beginPath();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = COLORS.agg;
-    ctx.shadowColor = COLORS.agg;
-    ctx.shadowBlur = 8;
-    for (let s = 0; s < history.length; s++) {
-      const x = marginL + (s / STEPS) * gW;
-      const y = marginT + gH - (history[s] / maxLoad) * gH;
-      if (s === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-
-    // DR line (if active)
-    if (historyDR.length > 0 && drActive) {
-      ctx.beginPath();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = COLORS.dr;
-      ctx.setLineDash([6, 4]);
-      for (let s = 0; s < historyDR.length; s++) {
-        const x = marginL + (s / STEPS) * gW;
-        const y = marginT + gH - (historyDR[s] / maxLoad) * gH;
-        if (s === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+      // Voltage label for some poles
+      if(pi%20===0&&pi>0){
+        ctx.fillStyle=vc;ctx.font='9px monospace';ctx.textAlign='left';
+        ctx.fillText(p.voltage.toFixed(3)+'pu',p.x+size+4,p.y+3);
       }
-      ctx.stroke();
-      ctx.setLineDash([]);
     }
   }
 
-  // ── Feeder limit ──
-  const limitY = marginT + gH - (FEEDER_LIMIT / maxLoad) * gH;
-  ctx.beginPath();
-  ctx.strokeStyle = COLORS.limit;
-  ctx.lineWidth = 2;
-  ctx.setLineDash([8, 6]);
-  ctx.moveTo(marginL, limitY);
-  ctx.lineTo(W - marginR, limitY);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.fillStyle = COLORS.limit;
-  ctx.font = 'bold 12px monospace';
-  ctx.textAlign = 'left';
-  ctx.fillText('LIMIT 5,000 kW', W - marginR + 6, limitY + 4);
+  // ── Load curve (bottom left) ──
+  const cX=20,cY=H-160,cW=W*.33,cH=130;
+  ctx.fillStyle='rgba(14,14,30,.85)';roundRect(ctx,cX,cY,cW,cH,8);ctx.fill();
+  ctx.strokeStyle='#252545';ctx.lineWidth=1;roundRect(ctx,cX,cY,cW,cH,8);ctx.stroke();
+  ctx.fillStyle='#6c7086';ctx.font='10px sans-serif';ctx.textAlign='left';
+  ctx.fillText('24h Load Profile',cX+10,cY+14);
 
-  // ── Current time marker ──
-  if (visibleSteps > 0) {
-    const cx = marginL + ((visibleSteps - 1) / STEPS) * gW;
-    // Vertical line
-    ctx.beginPath();
-    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-    ctx.lineWidth = 1;
-    ctx.moveTo(cx, marginT);
-    ctx.lineTo(cx, marginT + gH);
+  // Draw load history
+  if(loadHistory.length>1){
+    const maxY=6000;
+    // Limit line
+    ctx.beginPath();ctx.strokeStyle='rgba(255,107,107,.4)';ctx.setLineDash([4,4]);
+    const limY=cY+cH-5-(5000/maxY)*(cH-20);
+    ctx.moveTo(cX+5,limY);ctx.lineTo(cX+cW-5,limY);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='#ff6b6b';ctx.font='8px monospace';ctx.fillText('5MW',cX+cW-28,limY-3);
+
+    // Load curve
+    ctx.beginPath();ctx.strokeStyle='#f9e2af';ctx.lineWidth=1.5;
+    for(let i=0;i<loadHistory.length;i++){
+      const x=cX+5+(i/96)*( cW-10);
+      const y=cY+cH-5-(loadHistory[i]/maxY)*(cH-20);
+      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    }
     ctx.stroke();
 
-    // Dot at current aggregate
-    if (history.length > 0) {
-      const cy = marginT + gH - (history[history.length - 1] / maxLoad) * gH;
-      ctx.beginPath();
-      ctx.arc(cx, cy, 6, 0, Math.PI * 2);
-      ctx.fillStyle = COLORS.agg;
-      ctx.shadowColor = COLORS.agg;
-      ctx.shadowBlur = 15;
-      ctx.fill();
-      ctx.shadowBlur = 0;
+    // DR line
+    if(drHistory.length>0){
+      ctx.beginPath();ctx.strokeStyle='#51cf66';ctx.lineWidth=1;ctx.setLineDash([3,3]);
+      for(let i=0;i<drHistory.length;i++){
+        const x=cX+5+(i/96)*(cW-10);
+        const y=cY+cH-5-(drHistory[i]/maxY)*(cH-20);
+        i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+      }
+      ctx.stroke();ctx.setLineDash([]);
+    }
 
-      // Current load label
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 14px monospace';
-      ctx.textAlign = 'left';
-      ctx.fillText(history[history.length - 1].toFixed(0) + ' kW', cx + 12, cy - 8);
+    // Current time marker
+    const cx2=cX+5+((loadHistory.length-1)/96)*(cW-10);
+    ctx.beginPath();ctx.strokeStyle='rgba(255,255,255,.2)';ctx.lineWidth=1;
+    ctx.moveTo(cx2,cY+20);ctx.lineTo(cx2,cY+cH-5);ctx.stroke();
+  }
+
+  // Time axis labels
+  ctx.fillStyle='#555';ctx.font='8px monospace';ctx.textAlign='center';
+  for(let t=0;t<=24;t+=6){
+    const x=cX+5+(t/24)*(cW-10);
+    ctx.fillText(t+':00',x,cY+cH+10);
+  }
+
+  // ── Data Space activity log (bottom center) ──
+  if(dsLog.length>0){
+    const lX=cX+cW+16,lY=H-160,lW=W*.3,lH=130;
+    ctx.fillStyle='rgba(14,14,30,.85)';roundRect(ctx,lX,lY,lW,lH,8);ctx.fill();
+    ctx.strokeStyle='#252545';roundRect(ctx,lX,lY,lW,lH,8);ctx.stroke();
+    ctx.fillStyle='#6c7086';ctx.font='10px sans-serif';ctx.textAlign='left';
+    ctx.fillText('Data Space Activity',lX+10,lY+14);
+
+    const visible=dsLog.slice(-6);
+    for(let i=0;i<visible.length;i++){
+      const e=visible[i];
+      const ey=lY+26+i*17;
+      ctx.fillStyle=e.ok?'#51cf66':'#ff6b6b';ctx.font='9px monospace';
+      ctx.fillText(e.ok?'✓':'✗',lX+10,ey);
+      ctx.fillStyle='#888';
+      ctx.fillText(e.text,lX+24,ey);
     }
   }
-
-  // ── Sparkle particles for DR ──
-  if (drActive) {
-    const cx = marginL + (step / STEPS) * gW;
-    for (let i = 0; i < 3; i++) {
-      spawnParticle(
-        cx + randn(0, 20), marginT + gH - (drTotalReduction / maxLoad) * gH + randn(0, 50),
-        COLORS.dr, randn(0, 1), randn(-2, 1), 30 + rand() * 30
-      );
-    }
-  }
-
-  // Draw particles
-  for (let i = particles.length - 1; i >= 0; i--) {
-    const p = particles[i];
-    p.x += p.vx;
-    p.y += p.vy;
-    p.life--;
-    if (p.life <= 0) { particles.splice(i, 1); continue; }
-    ctx.globalAlpha = p.life / p.maxLife * 0.7;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-    ctx.fillStyle = p.color;
-    ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-
-  // ── DR activation flash ──
-  if (drActive && step === drStartStep) {
-    ctx.fillStyle = 'rgba(243,139,168,0.1)';
-    ctx.fillRect(0, 0, W, H);
-  }
-
-  // ── Mini house grid (bottom right, showing individual households) ──
-  if (step > 0) {
-    const gridX = W - 340;
-    const gridY = marginT + 10;
-    const cellSize = 3;
-    const cols = 40;
-    ctx.fillStyle = 'rgba(26,26,46,0.7)';
-    ctx.fillRect(gridX - 6, gridY - 18, cols * (cellSize + 1) + 12, (N / cols) * (cellSize + 1) + 28);
-    ctx.fillStyle = '#6c7086';
-    ctx.font = '10px monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText('1,000 Households (load intensity)', gridX, gridY - 6);
-
-    for (let i = 0; i < N; i++) {
-      const col = i % cols;
-      const row = Math.floor(i / cols);
-      const house = houses[i];
-      let load = house.loads[step];
-      if (drActive) load = Math.max(0.1, load - house.drReduction);
-
-      // Color by intensity
-      const intensity = Math.min(1, load / 10);
-      const color = house.hasEV ? COLORS.ev : house.hasBatt ? COLORS.batt : house.hasHP ? COLORS.hp : house.hasAC ? COLORS.ac : COLORS.base;
-
-      ctx.globalAlpha = 0.2 + intensity * 0.8;
-      ctx.fillStyle = color;
-      ctx.fillRect(gridX + col * (cellSize + 1), gridY + row * (cellSize + 1), cellSize, cellSize);
-    }
-    ctx.globalAlpha = 1;
-  }
-
-  // ── Update HUD ──
-  if (history.length > 0) {
-    const load = history[history.length - 1];
-    const pct = (load / FEEDER_LIMIT * 100);
-    document.getElementById('s-load').textContent = load.toFixed(0) + ' kW';
-    document.getElementById('s-load').style.color = pct > 85 ? COLORS.limit : pct > 70 ? COLORS.agg : COLORS.ac;
-    document.getElementById('s-pct').textContent = pct.toFixed(1) + '%';
-    document.getElementById('s-pct').style.color = pct > 85 ? COLORS.limit : pct > 70 ? COLORS.agg : COLORS.dr;
-    document.getElementById('s-ctrl').textContent = (drActive ? drTotalReduction.toFixed(0) : '0') + ' kW';
-    document.getElementById('s-dr').textContent = drActive ? '🟢 ACTIVE' : (h >= 19 && drStartStep > 0) ? '✅ DONE' : '—';
-    document.getElementById('s-dr').style.color = drActive ? COLORS.dr : '#6c7086';
-  }
-
-  const hours = Math.floor(h);
-  const mins = Math.floor((h - hours) * 60);
-  document.getElementById('t-clock').textContent = String(hours).padStart(2, '0') + ':' + String(mins).padStart(2, '0');
 }
 
-function tick(timestamp) {
-  if (!running) return;
-  if (!lastTime) lastTime = timestamp;
-  const dt = timestamp - lastTime;
-  lastTime = timestamp;
-  accumulator += dt;
+function roundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath()}
 
-  while (accumulator >= SPEED && step < STEPS) {
-    accumulator -= SPEED;
+// ── Simulation state ──
+let step=0,running=false,lastTime=0,accum=0;
+const SPEED=100,STEPS=96;
+const loadHistory=[],drHistory=[];
+const dsLog=[];
+let drActive=false,secOK=0,secNO=0;
 
-    // Check events
-    for (const [eStep, eText, isDR] of events) {
-      if (step === eStep) {
-        currentEvent = eText;
-        document.getElementById('t-event').textContent = eText;
-        if (isDR) {
-          drActive = true;
-          drStartStep = step;
-        }
+const events=[
+  [0,'🌙 深夜 — ベース負荷のみ'],
+  [24,'🌅 早朝 — 住宅が起床'],
+  [36,'☀️ 午前 — PV発電ピーク'],
+  [48,'🔥 正午 — エアコン起動'],
+  [52,'⚡ 13:00 — EV帰宅充電開始'],
+  [54,'📋 DSO → カタログに制約メタデータ公開'],
+  [55,'🤝 Aggregator → 契約交渉 OFFERED→ACTIVE'],
+  [55,'🛡️ Spy → アクセス試行 → DENIED (契約なし)'],
+  [55,'🛡️ Spy → トポロジ → DENIED (感度違反)'],
+  [56,'🔴 14:00 — DSO: 混雑検出! DR発動!','dr'],
+  [58,'📊 Aggregator: 柔軟性 966kW 提出 (EV45%/AC25%/Batt20%/HP10%)'],
+  [60,'⚡ Kafka: dispatch-commands → 236kW 削減指令'],
+  [64,'📉 16:00 — 負荷ピーク → DR抑制中'],
+  [68,'✅ 17:00 — 混雑解消! 85%→80%'],
+  [70,'🔐 Prosumer: research同意撤回 → 即拒否'],
+  [72,'⚡ DSO: 緊急オーバーライド (監査記録付き)'],
+  [76,'🔵 19:00 — DR終了、通常運転復帰','drend'],
+  [84,'🌙 21:00 — 負荷低下'],
+  [92,'📜 監査完了: 8エントリ (5成功+3拒否) SHA-256 ✓'],
+];
+
+function tick(ts){
+  if(!running)return;
+  if(!lastTime)lastTime=ts;
+  accum+=ts-lastTime;lastTime=ts;
+
+  while(accum>=SPEED&&step<STEPS){
+    accum-=SPEED;
+    const h=step*.25;
+
+    // Events
+    for(const[es,etxt,etype]of events){
+      if(step===es){
+        document.getElementById('event-msg').textContent=etxt;
+        if(etype==='dr'){drActive=true;document.getElementById('p-dr').style.display='block';document.getElementById('p-sec').style.display='block'}
+        if(etype==='drend')drActive=false;
+        // Log to DS activity
+        if(etxt.includes('DENIED')){dsLog.push({ok:false,text:etxt.slice(etxt.indexOf(' ')+1,80)});secNO++}
+        else if(etxt.includes('Aggregator')||etxt.includes('DSO')||etxt.includes('Kafka')||etxt.includes('Prosumer')||etxt.includes('監査')){
+          dsLog.push({ok:true,text:etxt.slice(etxt.indexOf(' ')+1,80)});if(!etxt.includes('DENIED'))secOK++}
       }
     }
 
-    // Apply DR
-    if (drActive) {
-      drTotalReduction = applyDR(step);
-    }
-    const h = step * 0.25;
-    if (h > 19 && drActive) {
-      drActive = false;
-      for (const house of houses) house.drReduction = 0;
-      drTotalReduction = 0;
+    computeLoads(h,drActive);
+    const totalLoad=feeders.reduce((s,f)=>s+f.totalLoad,0);
+    loadHistory.push(totalLoad);
+    if(drActive){
+      let noDR=0;for(const f of feeders)for(const p of f.poles)for(const hh of p.houses)noDR+=hh.load;
+      drHistory.push(noDR);
+    }else if(drHistory.length>0)drHistory.push(totalLoad);
+
+    // Update HUD
+    const pct=totalLoad/5000*100;
+    document.getElementById('p-load').textContent=totalLoad.toFixed(0)+' kW';
+    document.getElementById('p-load').style.color=pct>85?'#ff6b6b':pct>70?'#fcc419':'#51cf66';
+    document.getElementById('p-load-bar').style.width=Math.min(100,pct)+'%';
+    document.getElementById('p-load-bar').style.background=pct>85?'#ff6b6b':pct>70?'#fcc419':'#51cf66';
+
+    for(let fi=0;fi<2;fi++){
+      const f=feeders[fi];const pre=fi===0?'f1':'f2';
+      document.getElementById('p-'+pre+'-load').textContent=f.totalLoad.toFixed(0)+' kW';
+      document.getElementById('p-'+pre+'-v').textContent=f.minV.toFixed(3)+' pu';
+      document.getElementById('p-'+pre+'-v').style.color=f.minV<.95?'#ff6b6b':f.minV<.97?'#fcc419':'#51cf66';
+      document.getElementById('p-'+pre+'-viol').textContent=f.violations;
+      document.getElementById('p-'+pre+'-viol').style.color=f.violations>0?'#ff6b6b':'#51cf66';
     }
 
-    // Compute aggregate
-    const agg = getAggregate(step);
-    history.push(agg.total);
-    if (drActive) {
-      // Also store what it would have been without DR
-      let noDR = 0;
-      for (const h of houses) noDR += h.loads[step];
-      historyDR.push(noDR);
-    } else if (historyDR.length > 0) {
-      historyDR.push(historyDR[historyDR.length - 1]);
+    if(drActive){
+      const red=feeders.reduce((s,f)=>s+f.poles.reduce((s2,p)=>s2+p.houses.reduce((s3,hh)=>s3+hh.drReduce,0),0),0);
+      document.getElementById('p-dr-status').textContent='ACTIVE';
+      document.getElementById('p-dr-kw').textContent=red.toFixed(0)+' kW';
+      document.getElementById('p-dr-acc').textContent='94%';
+    }else if(step>76){
+      document.getElementById('p-dr-status').textContent='COMPLETE';document.getElementById('p-dr-status').style.color='#6c7086';
     }
+    document.getElementById('p-sec-ok').textContent=secOK;
+    document.getElementById('p-sec-no').textContent=secNO;
+
+    const hours=Math.floor(h),mins=Math.floor((h-hours)*60);
+    document.getElementById('t-clock').textContent=String(hours).padStart(2,'0')+':'+String(mins).padStart(2,'0');
 
     step++;
   }
 
-  if (step >= STEPS) {
-    // Loop with pause
-    document.getElementById('t-event').textContent = '🔄 24時間完了 — 3秒後にリスタート';
-    setTimeout(() => {
-      step = 0;
-      history.length = 0;
-      historyDR.length = 0;
-      drActive = false;
-      drStartStep = -1;
-      drTotalReduction = 0;
-      for (const h of houses) h.drReduction = 0;
-      particles.length = 0;
-      lastTime = 0;
-      accumulator = 0;
-      requestAnimationFrame(tick);
-    }, 3000);
-    draw();
-    return;
+  if(step>=STEPS){
+    document.getElementById('event-msg').textContent='🔄 24時間完了 — 3秒後にリスタート';
+    setTimeout(()=>{step=0;loadHistory.length=0;drHistory.length=0;dsLog.length=0;drActive=false;secOK=0;secNO=0;
+      document.getElementById('p-dr').style.display='none';document.getElementById('p-sec').style.display='none';
+      lastTime=0;accum=0;requestAnimationFrame(tick)},3000);
+    draw(24,false,layoutPoles());return;
   }
 
-  draw();
+  draw(step*.25,drActive,layoutPoles());
   requestAnimationFrame(tick);
 }
 
-function start() {
-  document.getElementById('controls').classList.add('hidden');
-  document.getElementById('hud').classList.remove('hidden');
-  document.getElementById('stats').classList.remove('hidden');
-  document.getElementById('timeline').classList.remove('hidden');
-  document.getElementById('legend').classList.remove('hidden');
-  running = true;
-  requestAnimationFrame(tick);
+function startSim(){
+  document.getElementById('start-screen').classList.add('hidden');
+  ['hud','clock','panel','event-bar','legend-bar'].forEach(id=>document.getElementById(id).classList.remove('hidden'));
+  running=true;requestAnimationFrame(tick);
 }
 </script>
 </body>
