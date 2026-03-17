@@ -2,6 +2,10 @@
 
 Federated Data Space research prototype for the electricity sector. Each participant retains local data ownership while sharing metadata, contracts, and control signals through a trust-mediated connector architecture.
 
+**[Live Demo (GitHub Pages)](https://lutelute.github.io/data-space-grid/)** | **[Presentation](https://lutelute.github.io/data-space-grid/presentation.html)** | **[日本語解説書](docs/GUIDE_JA.md)**
+
+**[Live Demo (GitHub Pages)](https://lutelute.github.io/data-space-grid/)** | **[Presentation](https://lutelute.github.io/data-space-grid/presentation.html)** | **[日本語解説書](docs/GUIDE_JA.md)**
+
 ## Architecture
 
 ![Architecture](docs/demos/concept-architecture.gif)
