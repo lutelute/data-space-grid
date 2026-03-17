@@ -2,93 +2,131 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<title>Data Space Grid — 系統シミュレーション</title>
+<title>配電系統シミュレーション — Data Space Grid</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#080814;color:#cdd6f4;font-family:'Helvetica Neue','Hiragino Kaku Gothic ProN',sans-serif;overflow:hidden}
+body{background:#060610;color:#c8cce8;font-family:'Helvetica Neue','Hiragino Kaku Gothic ProN',sans-serif;overflow:hidden}
 canvas{display:block}
-#hud{position:fixed;top:16px;left:24px;z-index:10;pointer-events:none}
-#hud h1{font-size:1.2rem;color:#00d2ff;margin-bottom:2px}
-#hud .sub{font-size:.72rem;color:#6c7086}
-#clock{position:fixed;top:16px;right:24px;z-index:10;text-align:right;pointer-events:none}
-#clock .time{font-size:2.2rem;font-weight:800;color:#f9e2af;font-family:'SF Mono',monospace}
-#clock .date{font-size:.75rem;color:#6c7086}
-#panel{position:fixed;top:70px;right:16px;width:260px;z-index:10;pointer-events:none}
-.pcard{background:rgba(14,14,30,.92);border:1px solid #252545;border-radius:10px;padding:12px 14px;margin-bottom:8px}
-.pcard h3{font-size:.72rem;color:#6c7086;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
-.pval{font-size:1.5rem;font-weight:800;line-height:1}
-.prow{display:flex;justify-content:space-between;font-size:.8rem;padding:2px 0}
-.pbar{height:6px;background:#1a1a30;border-radius:3px;margin-top:4px;overflow:hidden}
-.pbar-fill{height:100%;border-radius:3px;transition:width .5s}
-#event-bar{position:fixed;bottom:16px;left:24px;right:24px;z-index:10;pointer-events:none}
-#event-bar .msg{font-size:.9rem;color:#a6e3a1;min-height:1.2em}
-#legend-bar{position:fixed;bottom:16px;right:24px;z-index:10;pointer-events:none;text-align:right}
-#legend-bar div{font-size:.65rem;margin-bottom:1px}
-#start-screen{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:rgba(8,8,20,.97)}
-#start-screen .inner{text-align:center;max-width:520px}
-#start-screen h2{font-size:1.8rem;color:#00d2ff;margin-bottom:8px}
-#start-screen p{color:#6c7086;font-size:.9rem;margin-bottom:20px;line-height:1.6}
-#start-screen button{background:#00d2ff;color:#080814;border:none;padding:14px 40px;border-radius:8px;font-size:1.1rem;font-weight:700;cursor:pointer}
-#start-screen button:hover{background:#33ddff}
+#ui{position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:10}
+
+/* Top bar */
+#top{display:flex;justify-content:space-between;align-items:flex-start;padding:14px 20px}
+#top-left h1{font-size:1.05rem;color:#00c8ff;margin-bottom:2px}
+#top-left .sub{font-size:.68rem;color:#555580}
+#top-right{text-align:right}
+#top-right .clock{font-size:2rem;font-weight:800;color:#f9e2af;font-family:'SF Mono','Menlo',monospace}
+#top-right .date{font-size:.7rem;color:#555580}
+
+/* Right panel */
+#rpanel{position:fixed;top:60px;right:12px;width:240px;pointer-events:none}
+.rcard{background:rgba(10,10,24,.92);border:1px solid #1e1e40;border-radius:8px;padding:10px 12px;margin-bottom:6px;font-size:.8rem}
+.rcard h4{font-size:.65rem;color:#555580;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.rcard .big{font-size:1.3rem;font-weight:800;line-height:1}
+.rcard .row{display:flex;justify-content:space-between;padding:1px 0}
+.rcard .bar{height:5px;background:#1a1a30;border-radius:3px;margin-top:3px;overflow:hidden}
+.rcard .bar-fill{height:100%;border-radius:3px;transition:width .4s}
+
+/* Bottom panels */
+#bottom{position:fixed;bottom:8px;left:12px;right:260px;display:flex;gap:8px}
+.bcard{background:rgba(10,10,24,.92);border:1px solid #1e1e40;border-radius:8px;padding:10px;flex:1}
+.bcard h4{font-size:.65rem;color:#555580;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+
+/* Event log */
+#elog{position:fixed;bottom:8px;right:12px;width:240px;pointer-events:none}
+.ecard{background:rgba(10,10,24,.92);border:1px solid #1e1e40;border-radius:8px;padding:10px;font-size:.72rem}
+.ecard h4{font-size:.65rem;color:#555580;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.eline{padding:2px 0;border-bottom:1px solid #12122a}
+.eline.ok{color:#51cf66}.eline.no{color:#ff6b6b}.eline.em{color:#fcc419}
+
+/* Start screen */
+#start{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:rgba(6,6,16,.97)}
+#start .inner{text-align:center;max-width:600px}
+#start h2{font-size:1.6rem;color:#00c8ff;margin-bottom:10px}
+#start p{color:#555580;font-size:.88rem;line-height:1.7;margin-bottom:16px}
+#start .specs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:20px}
+#start .spec{background:#10102a;border:1px solid #1e1e40;border-radius:8px;padding:10px;text-align:center}
+#start .spec .v{font-size:1.3rem;font-weight:800;color:#00c8ff}
+#start .spec .l{font-size:.7rem;color:#555580;margin-top:2px}
+#start button{background:#00c8ff;color:#060610;border:none;padding:12px 36px;border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer;pointer-events:auto}
 .hidden{display:none!important}
 </style>
 </head>
 <body>
-<div id="start-screen">
+<div id="start">
   <div class="inner">
-    <h2>配電系統シミュレーション</h2>
-    <p>柏変電所 → 2フィーダー → 250電柱 → 1,000軒<br>
-    夏の午後、EV充電とエアコンで混雑が発生。<br>
-    データスペースを通じてDRで解消する過程をリアルタイムで表示。</p>
-    <button onclick="startSim()">START</button>
+    <div style="font-size:.75rem;color:#00c8ff;letter-spacing:3px;margin-bottom:8px">DISTRIBUTION GRID SIMULATION</div>
+    <h2>柏配電系統シミュレーション</h2>
+    <p>特高変電所から低圧需要家までの配電系統をモデル化。<br>
+    夏季ピーク時のEV充電集中による熱容量超過と末端電圧低下を、<br>
+    フェデレーテッド・データスペースを介したDR制御で解消する。</p>
+    <div class="specs">
+      <div class="spec"><div class="v">66/6.6kV</div><div class="l">変電所 (OLTC付)</div></div>
+      <div class="spec"><div class="v">ACSR 120mm²</div><div class="l">架空配電線</div></div>
+      <div class="spec"><div class="v">6.6kV/210V</div><div class="l">柱上変圧器 ×50</div></div>
+      <div class="spec"><div class="v">1,000軒</div><div class="l">低圧需要家</div></div>
+      <div class="spec"><div class="v">5 MW</div><div class="l">フィーダー定格</div></div>
+      <div class="spec"><div class="v">DistFlow</div><div class="l">潮流計算</div></div>
+    </div>
+    <button onclick="go()">シミュレーション開始</button>
   </div>
 </div>
-<div id="hud" class="hidden">
-  <h1>柏変電所 — 配電系統</h1>
-  <div class="sub">66/6.6kV 10MVA | 2 Feeders | 250 Poles | 1,000 Houses</div>
+
+<div id="ui" class="hidden">
+  <div id="top">
+    <div id="top-left">
+      <h1>柏変電所 配電系統</h1>
+      <div class="sub">特高66kV受電 / 配電6.6kV / 低圧210-105V / OLTC整定105±2.5%</div>
+    </div>
+    <div id="top-right">
+      <div class="clock" id="clk">00:00</div>
+      <div class="date">2026年8月15日（金）夏季ピーク日</div>
+    </div>
+  </div>
+  <div id="rpanel">
+    <div class="rcard">
+      <h4>系統合計</h4>
+      <div class="big" id="r-load" style="color:#f9e2af">0 kW</div>
+      <div class="bar"><div class="bar-fill" id="r-bar" style="background:#f9e2af;width:0"></div></div>
+      <div class="row" style="margin-top:3px;font-size:.7rem"><span>0</span><span>定格 5,000 kW</span></div>
+    </div>
+    <div class="rcard" id="rc-f1">
+      <h4>幹線フィーダー (F-101)</h4>
+      <div class="row"><span>潮流</span><span id="r-f1-p">0 kW</span></div>
+      <div class="row"><span>末端電圧</span><span id="r-f1-v">1.000 pu</span></div>
+      <div class="row"><span>電圧逸脱</span><span id="r-f1-viol">0 柱</span></div>
+      <div class="row"><span>最大電流</span><span id="r-f1-i">0 A</span></div>
+    </div>
+    <div class="rcard" id="rc-f2">
+      <h4>分岐フィーダー (F-102)</h4>
+      <div class="row"><span>潮流</span><span id="r-f2-p">0 kW</span></div>
+      <div class="row"><span>末端電圧</span><span id="r-f2-v">1.000 pu</span></div>
+      <div class="row"><span>電圧逸脱</span><span id="r-f2-viol">0 柱</span></div>
+      <div class="row"><span>最大電流</span><span id="r-f2-i">0 A</span></div>
+    </div>
+    <div class="rcard" id="rc-dr" style="display:none">
+      <h4>DR制御</h4>
+      <div class="big" id="r-dr-st" style="color:#51cf66">—</div>
+      <div class="row"><span>出力抑制</span><span id="r-dr-kw">0 kW</span></div>
+      <div class="row"><span>EV充電制御</span><span id="r-dr-ev">0 台</span></div>
+      <div class="row"><span>蓄電池放電</span><span id="r-dr-bt">0 台</span></div>
+      <div class="row"><span>AC抑制</span><span id="r-dr-ac">0 台</span></div>
+    </div>
+    <div class="rcard" id="rc-ds" style="display:none">
+      <h4>Data Space</h4>
+      <div class="row"><span style="color:#51cf66">契約: ACTIVE</span><span id="r-ds-ct">0</span></div>
+      <div class="row"><span style="color:#51cf66">✓ 許可</span><span id="r-ds-ok">0</span></div>
+      <div class="row"><span style="color:#ff6b6b">✗ 拒否</span><span id="r-ds-no">0</span></div>
+      <div class="row"><span style="color:#74c0fc">📜 監査</span><span id="r-ds-au">0</span></div>
+    </div>
+  </div>
+  <div id="elog">
+    <div class="ecard">
+      <h4>Data Space Activity Log</h4>
+      <div id="elog-lines"></div>
+    </div>
+  </div>
 </div>
-<div id="clock" class="hidden">
-  <div class="time" id="t-clock">00:00</div>
-  <div class="date">2026年8月15日（金）</div>
-</div>
-<div id="panel" class="hidden">
-  <div class="pcard">
-    <h3>Total Load</h3>
-    <div class="pval" id="p-load" style="color:#f9e2af">0 kW</div>
-    <div class="pbar"><div class="pbar-fill" id="p-load-bar" style="background:#f9e2af;width:0"></div></div>
-    <div class="prow" style="margin-top:4px"><span>0</span><span style="color:#ff6b6b">Limit: 5,000 kW</span></div>
-  </div>
-  <div class="pcard">
-    <h3>Feeder F-101</h3>
-    <div class="prow"><span>Load</span><span id="p-f1-load" style="color:#ff6b6b">0 kW</span></div>
-    <div class="prow"><span>Min Voltage</span><span id="p-f1-v">1.00 pu</span></div>
-    <div class="prow"><span>Violations</span><span id="p-f1-viol" style="color:#ff6b6b">0</span></div>
-  </div>
-  <div class="pcard">
-    <h3>Feeder F-102</h3>
-    <div class="prow"><span>Load</span><span id="p-f2-load" style="color:#74c0fc">0 kW</span></div>
-    <div class="prow"><span>Min Voltage</span><span id="p-f2-v">1.00 pu</span></div>
-    <div class="prow"><span>Violations</span><span id="p-f2-viol" style="color:#74c0fc">0</span></div>
-  </div>
-  <div class="pcard" id="p-dr" style="display:none">
-    <h3>DR Status</h3>
-    <div class="pval" id="p-dr-status" style="color:#51cf66">—</div>
-    <div class="prow"><span>Reduction</span><span id="p-dr-kw">0 kW</span></div>
-    <div class="prow"><span>Accuracy</span><span id="p-dr-acc">—</span></div>
-  </div>
-  <div class="pcard" id="p-sec" style="display:none">
-    <h3>Security</h3>
-    <div class="prow"><span style="color:#51cf66">✓ Granted</span><span id="p-sec-ok">0</span></div>
-    <div class="prow"><span style="color:#ff6b6b">✗ Denied</span><span id="p-sec-no">0</span></div>
-  </div>
-</div>
-<div id="event-bar" class="hidden"><div class="msg" id="event-msg"></div></div>
-<div id="legend-bar" class="hidden">
-  <div><span style="color:#51cf66">●</span> V ≥ 0.97pu</div>
-  <div><span style="color:#fcc419">●</span> 0.95-0.97pu</div>
-  <div><span style="color:#ff6b6b">●</span> V &lt; 0.95pu</div>
-  <div style="margin-top:3px"><span style="color:#ffa94d">■</span> EV <span style="color:#74c0fc">■</span> AC <span style="color:#51cf66">■</span> Batt <span style="color:#b197fc">■</span> HP</div>
-</div>
+
 <canvas id="c"></canvas>
 <script>
 const C=document.getElementById('c'),ctx=C.getContext('2d');
@@ -96,349 +134,650 @@ let W,H;function resize(){W=C.width=innerWidth;H=C.height=innerHeight}resize();a
 
 // ── Deterministic RNG ──
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t^=t+Math.imul(t^t>>>7,61|t);return((t^t>>>14)>>>0)/4294967296}}
-const rng=mulberry32(42),rand=()=>rng(),randn=(m,s)=>{let u=0,v=0;while(!u)u=rand();while(!v)v=rand();return m+s*Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)};
+const rng=mulberry32(42),R=()=>rng(),Rn=(m,s)=>{let u=0,v=0;while(!u)u=R();while(!v)v=R();return m+s*Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)};
 
-// ── Build grid: 2 feeders × 125 poles × 4 houses ──
-const POLES_PER_FEEDER=125,HOUSES_PER_POLE=4,N_FEEDERS=2;
-const feeders=[];
-for(let fi=0;fi<N_FEEDERS;fi++){
-  const poles=[];
-  for(let pi=0;pi<POLES_PER_FEEDER;pi++){
-    const houses=[];
-    for(let hi=0;hi<HOUSES_PER_POLE;hi++){
-      const idx=fi*POLES_PER_FEEDER*HOUSES_PER_POLE+pi*HOUSES_PER_POLE+hi;
-      const hasEV=idx<300,hasAC=idx<700,hasBatt=idx>=300&&idx<500,hasHP=idx>=900;
-      houses.push({hasEV,hasAC,hasBatt,hasHP,
-        baseScale:Math.max(.3,randn(1,.25)),
-        evPow:hasEV?[3,5,6,7,11][Math.floor(rand()*5)]:0,
-        evStart:randn(16.5,1.2),
-        acPow:hasAC?randn(1.8,.5):0,
-        hpPow:hasHP?randn(2.2,.5):0,
-        battCap:hasBatt?randn(9,3):0,
-        load:0,drReduce:0
-      });
-    }
-    poles.push({houses,voltage:1.0,x:0,y:0});
+// ── Line parameters: ACSR 120mm² overhead ──
+const LINE_R=0.27;  // Ω/km
+const LINE_X=0.35;  // Ω/km
+const V_BASE=6600;  // V (line voltage)
+const S_BASE=5000;  // kVA
+const Z_BASE=V_BASE*V_BASE/(S_BASE*1000); // Ω
+const I_RATED=S_BASE*1000/(Math.sqrt(3)*V_BASE); // A ≈ 437A
+const SPAN_M=35;    // pole span
+const V_SEND=1.03;  // OLTC sending voltage (103%)
+const V_MIN=0.95;   // lower voltage limit
+const V_MAX=1.05;   // upper voltage limit
+const PF=0.95;      // power factor
+
+// ── Grid topology ──
+// Substation → 2 feeders, each with branches
+// F-101: Main trunk (30 poles) with 2 lateral branches (10 poles each)
+// F-102: Main trunk (25 poles) with 3 lateral branches (8 poles each)
+// Each "pole" has a 柱上変圧器 (50kVA) serving ~20 low-voltage houses on average
+// Simplified: 50 transformer poles total → 1000 houses (20 houses/transformer)
+
+const grid={sub:{x:0,y:0},feeders:[]};
+
+function buildGrid(){
+  // F-101: trunk 30 poles + 2 branches
+  const f1={id:'F-101',color:'#ff6b6b',trunks:[],branches:[],allPoles:[]};
+  for(let i=0;i<30;i++){
+    const p=makePole('F101-T'+i,i,30,i*SPAN_M/1000);
+    f1.trunks.push(p);f1.allPoles.push(p);
   }
-  feeders.push({poles,totalLoad:0,minV:1.0,violations:0});
-}
+  // Branch 1 at pole 12
+  for(let i=0;i<10;i++){
+    const p=makePole('F101-B1-'+i,i,10,(12+i)*SPAN_M/1000);
+    p.branchFrom=12;p.branchIdx=i;p.branchId=1;
+    f1.branches.push(p);f1.allPoles.push(p);
+  }
+  // Branch 2 at pole 22
+  for(let i=0;i<10;i++){
+    const p=makePole('F101-B2-'+i,i,10,(22+i)*SPAN_M/1000);
+    p.branchFrom=22;p.branchIdx=i;p.branchId=2;
+    f1.branches.push(p);f1.allPoles.push(p);
+  }
+  grid.feeders.push(f1);
 
-// ── Compute loads at time h ──
-function computeLoads(h,drActive){
-  for(const f of feeders){
-    f.totalLoad=0;f.minV=1.02;f.violations=0;
-    // Voltage drop calculation
-    let v=1.02;
-    for(let pi=0;pi<f.poles.length;pi++){
-      const p=f.poles[pi];let poleLoad=0;
-      for(const house of p.houses){
-        let base=(1.5+.8*Math.sin(Math.PI*(h-6)/12))*house.baseScale;
-        base=Math.max(.3,base);
-        let ev=0;if(house.hasEV&&house.evPow>0)ev=house.evPow*Math.exp(-.5*((h-house.evStart)/1.5)**2);
-        let ac=0;if(house.hasAC&&h>=12&&h<18)ac=house.acPow*(.6+.4*rand());
-        let hp=0;if(house.hasHP&&h>=11&&h<17)hp=house.hpPow*(.5+.5*rand());
-        house.load=Math.max(.2,base+ev+ac+hp);
-        // DR reduction
-        house.drReduce=0;
-        if(drActive&&h>=14&&h<=19){
-          const ramp=h<14.5?(h-14)/.5:h>18.5?(19-h)/.5:1;
-          if(house.hasEV&&ev>0)house.drReduce+=ev*.7*ramp;
-          if(house.hasAC&&ac>0)house.drReduce+=ac*.25*ramp;
-          if(house.hasBatt)house.drReduce+=Math.min(3,house.battCap*.3)*ramp;
-        }
-        const net=Math.max(.1,house.load-house.drReduce);
-        poleLoad+=net;
+  // F-102: trunk 25 poles + 3 branches
+  const f2={id:'F-102',color:'#74c0fc',trunks:[],branches:[],allPoles:[]};
+  for(let i=0;i<25;i++){
+    const p=makePole('F102-T'+i,i,25,i*SPAN_M/1000);
+    f2.trunks.push(p);f2.allPoles.push(p);
+  }
+  for(let b=0;b<3;b++){
+    const from=[8,15,21][b];
+    for(let i=0;i<8;i++){
+      const p=makePole('F102-B'+b+'-'+i,i,8,(from+i)*SPAN_M/1000);
+      p.branchFrom=from;p.branchIdx=i;p.branchId=b;
+      f2.branches.push(p);f2.allPoles.push(p);
+    }
+  }
+  grid.feeders.push(f2);
+
+  // Total poles: 30+20+25+24 = 99 → but we want ~50 transformers for 1000 houses
+  // So each pole has a 柱上変圧器 with ~10 houses (total ~990)
+  let houseCount=0;
+  for(const f of grid.feeders){
+    for(const p of f.allPoles){
+      const nHouses=Math.round(Rn(10,2));
+      for(let i=0;i<nHouses;i++){
+        houseCount++;
+        const hasEV=R()<.30;
+        const hasPV=R()<(0.15+0.2*p.distKm/2);// more PV at end
+        const hasBatt=R()<.15;
+        const hasHP=R()<.10;
+        const hasAC=R()<.85;// 85% in summer
+        p.houses.push({
+          id:'H-'+String(houseCount).padStart(4,'0'),
+          hasEV,hasPV,hasBatt,hasHP,hasAC,
+          contractKW:hasEV?Rn(4,.5):0,// EV contract power
+          evPow:hasEV?[3,6,6,6,8][Math.floor(R()*5)]:0,
+          evStart:Rn(17,1.5),
+          pvCap:hasPV?Rn(4.5,1.5):0,
+          battCap:hasBatt?Rn(7,2):0,
+          acPow:hasAC?Rn(2,.5):0,
+          hpPow:hasHP?Rn(2.5,.5):0,
+          basePow:Rn(1.2,.3),
+          load:0,gen:0,drReduce:0,drType:''
+        });
       }
-      // Simplified voltage drop
-      const downstreamKW=f.poles.slice(pi).reduce((s,pp)=>s+pp.houses.reduce((s2,hh)=>s2+Math.max(.1,hh.load-hh.drReduce),0),0);
-      const vDrop=downstreamKW*.000008;// simplified
-      v=Math.max(.85,v-vDrop);
-      p.voltage=v;
-      if(v<.95)f.violations++;
-      if(v<f.minV)f.minV=v;
-      f.totalLoad+=poleLoad;
     }
   }
 }
 
-// ── Layout poles on screen ──
-function layoutPoles(){
-  const cx=W*.38,cy=H*.48;
-  const subX=cx,subY=cy-H*.38;
-  for(let fi=0;fi<N_FEEDERS;fi++){
-    const f=feeders[fi];
-    const angle0=fi===0?Math.PI*.55:Math.PI*.45;// left / right
-    const spreadX=fi===0?-1:1;
-    for(let pi=0;pi<f.poles.length;pi++){
-      const t=pi/f.poles.length;
-      // Feeder runs down and out
-      const px=subX+spreadX*(30+t*W*.28)+Math.sin(t*4)*15;
-      const py=subY+40+t*(H*.72);
-      f.poles[pi].x=px;f.poles[pi].y=py;
+function makePole(id,idx,total,distKm){
+  return{id,idx,total,distKm,houses:[],voltage:1.0,current:0,
+    pFlow:0,qFlow:0,x:0,y:0,branchFrom:-1,branchIdx:-1,branchId:-1};
+}
+
+// ── Power Flow: Backward-Forward Sweep (DistFlow) ──
+function powerFlow(feeder){
+  // Phase 1: Backward sweep — accumulate load from end to start
+  // Trunk
+  for(let i=feeder.trunks.length-1;i>=0;i--){
+    const p=feeder.trunks[i];
+    let pLocal=0,qLocal=0;
+    for(const h of p.houses){
+      const net=Math.max(0,h.load-h.gen-h.drReduce);
+      pLocal+=net;
+      qLocal+=net*Math.tan(Math.acos(PF));
+    }
+    // Add downstream trunk load
+    if(i<feeder.trunks.length-1){
+      pLocal+=feeder.trunks[i+1].pFlow;
+      qLocal+=feeder.trunks[i+1].qFlow;
+    }
+    // Add branch loads originating from this pole
+    for(const bp of feeder.branches){
+      if(bp.branchFrom===i&&bp.branchIdx===0){
+        // Find total branch load
+        const branchPoles=feeder.branches.filter(x=>x.branchId===bp.branchId);
+        let bpTotal=0,bqTotal=0;
+        for(const bb of branchPoles){
+          for(const h of bb.houses){
+            const net=Math.max(0,h.load-h.gen-h.drReduce);
+            bpTotal+=net;bqTotal+=net*Math.tan(Math.acos(PF));
+          }
+        }
+        pLocal+=bpTotal;qLocal+=bqTotal;
+      }
+    }
+    p.pFlow=pLocal;
+    p.qFlow=qLocal;
+  }
+
+  // Phase 2: Forward sweep — calculate voltage drops
+  let v=V_SEND;
+  let totalViols=0,minV=V_SEND;
+  for(let i=0;i<feeder.trunks.length;i++){
+    const p=feeder.trunks[i];
+    const segKm=SPAN_M/1000;
+    const r=LINE_R*segKm;
+    const x=LINE_X*segKm;
+    // DistFlow: ΔV ≈ (P·R + Q·X) / V²
+    const pPU=p.pFlow/S_BASE;
+    const qPU=p.qFlow/S_BASE;
+    const rPU=r/Z_BASE;
+    const xPU=x/Z_BASE;
+    const dv=(pPU*rPU+qPU*xPU)/v;
+    v=v-dv;
+    p.voltage=Math.max(0.80,v);
+    p.current=Math.sqrt(p.pFlow*p.pFlow+p.qFlow*p.qFlow)/(Math.sqrt(3)*V_BASE/1000);
+    if(p.voltage<V_MIN)totalViols++;
+    if(p.voltage<minV)minV=p.voltage;
+
+    // Branch voltage drops from this pole
+    for(const bp of feeder.branches){
+      if(bp.branchFrom===i&&bp.branchIdx===0){
+        let bv=v;
+        const branchPoles=feeder.branches.filter(x=>x.branchId===bp.branchId).sort((a,b)=>a.branchIdx-b.branchIdx);
+        for(let bi=0;bi<branchPoles.length;bi++){
+          const bb=branchPoles[bi];
+          // Branch downstream load
+          let bpDown=0,bqDown=0;
+          for(let bj=bi;bj<branchPoles.length;bj++){
+            for(const h of branchPoles[bj].houses){
+              const net=Math.max(0,h.load-h.gen-h.drReduce);
+              bpDown+=net;bqDown+=net*Math.tan(Math.acos(PF));
+            }
+          }
+          const bdv=(bpDown/S_BASE*(LINE_R*SPAN_M/1000/Z_BASE)+bqDown/S_BASE*(LINE_X*SPAN_M/1000/Z_BASE))/bv;
+          bv=bv-bdv;
+          bb.pFlow=bpDown;bb.qFlow=bqDown;
+          bb.voltage=Math.max(0.80,bv);
+          bb.current=Math.sqrt(bpDown*bpDown+bqDown*bqDown)/(Math.sqrt(3)*V_BASE/1000);
+          if(bb.voltage<V_MIN)totalViols++;
+          if(bb.voltage<minV)minV=bb.voltage;
+        }
+      }
+    }
+  }
+  return{totalViols,minV,totalLoad:feeder.trunks[0]?.pFlow||0,
+    maxI:Math.max(...feeder.allPoles.map(p=>p.current))};
+}
+
+// ── Compute house loads at time h ──
+function computeHouseLoads(h){
+  for(const f of grid.feeders){
+    for(const p of f.allPoles){
+      for(const house of p.houses){
+        // Base load: residential pattern
+        let base=house.basePow*(0.4+0.3*Math.sin(Math.PI*(h-6)/12)+0.3*Math.sin(Math.PI*(h-18)/6));
+        base=Math.max(0.15,base);
+
+        // AC: 12:00-21:00, peaks at 15:00
+        let ac=0;
+        if(house.hasAC&&h>=11&&h<21){
+          const acFactor=Math.exp(-0.5*((h-15)/3)**2);
+          ac=house.acPow*acFactor;
+        }
+
+        // EV charging: gaussian around evStart
+        let ev=0;
+        if(house.hasEV){
+          ev=house.evPow*Math.exp(-0.5*((h-house.evStart)/1.5)**2);
+          if(ev<0.05)ev=0;
+        }
+
+        // HP: 11:00-20:00
+        let hp=0;
+        if(house.hasHP&&h>=11&&h<20){
+          hp=house.hpPow*(0.5+0.5*Math.sin(Math.PI*(h-11)/9));
+        }
+
+        house.load=base+ac+ev+hp;
+
+        // PV generation: bell curve peaking at 12:00
+        house.gen=0;
+        if(house.hasPV&&h>=6&&h<18){
+          const irradiance=Math.sin(Math.PI*(h-6)/12);
+          house.gen=house.pvCap*irradiance*(.7+.3*R());// cloud noise
+        }
+      }
+    }
+  }
+}
+
+// ── DR control ──
+function applyDR(h){
+  let totalRed=0,nEV=0,nBatt=0,nAC=0;
+  if(h<14||h>19)return{totalRed,nEV,nBatt,nAC};
+  const ramp=h<14.5?(h-14)/0.5:h>18.5?(19-h)/0.5:1;
+
+  for(const f of grid.feeders){
+    for(const p of f.allPoles){
+      // Prioritize end-of-feeder poles (lower voltage)
+      const urgency=Math.max(0,(V_MIN+0.02-p.voltage)*50);
+      const factor=Math.min(1,ramp*(0.3+urgency));
+
+      for(const house of p.houses){
+        house.drReduce=0;house.drType='';
+        // EV: reduce to minimum or delay
+        if(house.hasEV&&house.load>house.basePow+0.5){
+          const evNow=house.evPow*Math.exp(-0.5*((h-house.evStart)/1.5)**2);
+          if(evNow>0.5){
+            house.drReduce+=evNow*0.8*factor;
+            house.drType='ev';nEV++;
+          }
+        }
+        // Battery: discharge (V2G / V2H)
+        if(house.hasBatt&&factor>0.2){
+          const discharge=Math.min(3,house.battCap*0.25)*factor;
+          house.drReduce+=discharge;
+          if(!house.drType)house.drType='batt';nBatt++;
+        }
+        // AC: raise setpoint (reduce 20-30%)
+        if(house.hasAC&&house.acPow>0&&h>=12&&h<20){
+          const acNow=house.acPow*Math.exp(-0.5*((h-15)/3)**2);
+          if(acNow>0.3){
+            house.drReduce+=acNow*0.25*factor;
+            if(!house.drType)house.drType='ac';nAC++;
+          }
+        }
+        totalRed+=house.drReduce;
+      }
+    }
+  }
+  return{totalRed,nEV,nBatt,nAC};
+}
+
+// ── Layout ──
+function layout(){
+  const subX=W*0.32,subY=60;
+  grid.sub.x=subX;grid.sub.y=subY;
+
+  for(let fi=0;fi<grid.feeders.length;fi++){
+    const f=grid.feeders[fi];
+    const baseX=fi===0?subX-40:subX+40;
+    const dirX=fi===0?-1:1;
+
+    // Trunk: runs downward with slight curve
+    for(let i=0;i<f.trunks.length;i++){
+      const t=i/f.trunks.length;
+      f.trunks[i].x=baseX+dirX*(20+t*W*0.18)+Math.sin(t*3)*10;
+      f.trunks[i].y=subY+50+t*(H-150);
+    }
+
+    // Branches: go sideways from trunk
+    for(const bp of f.branches){
+      const tp=f.trunks[bp.branchFrom];
+      if(!tp)continue;
+      const bDir=fi===0?-1:1;
+      bp.x=tp.x+bDir*(15+bp.branchIdx*25)+(bp.branchId%2===0?-5:5);
+      bp.y=tp.y+bp.branchIdx*12+bp.branchId*3;
     }
   }
   return{subX,subY};
 }
 
 // ── Drawing ──
-const COL={ev:'#ffa94d',ac:'#74c0fc',batt:'#51cf66',hp:'#b197fc',base:'#3a3a5a',
-  ok:'#51cf66',warn:'#fcc419',bad:'#ff6b6b',line:'#1e1e40',bg:'#080814',sub:'#f9e2af'};
+function voltC(v){return v>=0.97?'#51cf66':v>=0.95?'#fcc419':'#ff6b6b'}
+function rr(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath()}
 
-function voltColor(v){return v>=.97?COL.ok:v>=.95?COL.warn:COL.bad}
+function drawGrid(h,drActive,drInfo,pfResults){
+  ctx.fillStyle='#060610';ctx.fillRect(0,0,W,H);
 
-function draw(h,drActive,sub){
-  ctx.fillStyle=COL.bg;ctx.fillRect(0,0,W,H);
-  // Background grid
-  ctx.strokeStyle='#0e0e20';ctx.lineWidth=1;
-  for(let i=0;i<W;i+=60){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,H);ctx.stroke()}
-  for(let i=0;i<H;i+=60){ctx.beginPath();ctx.moveTo(0,i);ctx.lineTo(W,i);ctx.stroke()}
+  // Grid lines
+  ctx.strokeStyle='#0c0c1a';ctx.lineWidth=1;
+  for(let i=0;i<W;i+=80){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,H);ctx.stroke()}
+  for(let i=0;i<H;i+=80){ctx.beginPath();ctx.moveTo(0,i);ctx.lineTo(W,i);ctx.stroke()}
 
-  // Substation
-  const {subX,subY}=sub;
-  ctx.fillStyle='#1a1a30';ctx.strokeStyle=COL.sub;ctx.lineWidth=2;
-  roundRect(ctx,subX-40,subY-20,80,40,8);ctx.fill();ctx.stroke();
-  ctx.fillStyle=COL.sub;ctx.font='bold 11px sans-serif';ctx.textAlign='center';
-  ctx.fillText('柏変電所',subX,subY-4);ctx.font='9px sans-serif';ctx.fillText('66/6.6kV',subX,subY+10);
+  const {subX,subY}=grid.sub;
 
-  // Feeders
-  const feederColors=[COL.bad,'#74c0fc'];
-  const feederLabels=['F-101','F-102'];
-  for(let fi=0;fi<N_FEEDERS;fi++){
-    const f=feeders[fi];
-    // Draw feeder trunk line
-    ctx.beginPath();ctx.strokeStyle=feederColors[fi];ctx.lineWidth=2;ctx.globalAlpha=.3;
-    ctx.moveTo(subX,subY+20);
-    for(const p of f.poles)ctx.lineTo(p.x,p.y);
+  // ── Substation ──
+  ctx.fillStyle='#12122a';ctx.strokeStyle='#f9e2af';ctx.lineWidth=2;
+  rr(ctx,subX-50,subY-22,100,44,6);ctx.fill();ctx.stroke();
+  ctx.fillStyle='#f9e2af';ctx.font='bold 10px sans-serif';ctx.textAlign='center';
+  ctx.fillText('柏変電所',subX,subY-6);
+  ctx.font='8px monospace';ctx.fillText('66/6.6kV OLTC '+V_SEND.toFixed(2)+'pu',subX,subY+8);
+
+  // ── Feeders ──
+  for(let fi=0;fi<grid.feeders.length;fi++){
+    const f=grid.feeders[fi];
+
+    // Trunk line
+    ctx.beginPath();ctx.strokeStyle=f.color;ctx.lineWidth=2.5;ctx.globalAlpha=0.4;
+    ctx.moveTo(subX,subY+22);
+    for(const p of f.trunks)ctx.lineTo(p.x,p.y);
     ctx.stroke();ctx.globalAlpha=1;
 
-    // Feeder label
-    if(f.poles.length>0){
-      const lp=f.poles[2];
-      ctx.fillStyle=feederColors[fi];ctx.font='bold 10px sans-serif';ctx.textAlign='center';
-      ctx.fillText(feederLabels[fi],lp.x,lp.y-12);
+    // Branch lines
+    for(const bp of f.branches){
+      if(bp.branchIdx===0){
+        const tp=f.trunks[bp.branchFrom];
+        if(!tp)continue;
+        ctx.beginPath();ctx.strokeStyle=f.color;ctx.lineWidth=1.5;ctx.globalAlpha=0.25;
+        ctx.moveTo(tp.x,tp.y);
+        const branchPoles=f.branches.filter(x=>x.branchId===bp.branchId).sort((a,b)=>a.branchIdx-b.branchIdx);
+        for(const bb of branchPoles)ctx.lineTo(bb.x,bb.y);
+        ctx.stroke();ctx.globalAlpha=1;
+      }
     }
 
-    // Draw poles (every Nth for clarity at smaller screens, all at larger)
-    const step=W<1200?4:2;
-    for(let pi=0;pi<f.poles.length;pi+=step){
-      const p=f.poles[pi];
-      const vc=voltColor(p.voltage);
-      const poleLoad=p.houses.reduce((s,hh)=>s+Math.max(.1,hh.load-hh.drReduce),0);
-      const size=Math.min(6,2+poleLoad/8);
+    // Feeder label
+    if(f.trunks.length>3){
+      ctx.fillStyle=f.color;ctx.font='bold 9px sans-serif';ctx.textAlign='center';
+      ctx.fillText(f.id,f.trunks[1].x,f.trunks[1].y-10);
+    }
 
-      // Pole dot
-      ctx.beginPath();ctx.arc(p.x,p.y,size,0,Math.PI*2);
-      ctx.fillStyle=vc;ctx.globalAlpha=.7;ctx.fill();ctx.globalAlpha=1;
+    // ── Poles ──
+    for(const p of f.allPoles){
+      const vc=voltC(p.voltage);
+      const poleLoad=p.houses.reduce((s,h)=>s+Math.max(0,h.load-h.gen-h.drReduce),0);
+      const sz=Math.min(5,1.5+poleLoad/20);
 
-      // Glow for violations
-      if(p.voltage<.95){
-        ctx.beginPath();ctx.arc(p.x,p.y,size+4,0,Math.PI*2);
-        ctx.fillStyle='rgba(255,107,107,.15)';ctx.fill();
+      // Current flow indicator (line thickness near pole)
+      if(p.current>10){
+        const iRatio=Math.min(1,p.current/I_RATED);
+        ctx.beginPath();ctx.arc(p.x,p.y,sz+3+iRatio*4,0,Math.PI*2);
+        ctx.fillStyle=iRatio>0.8?'rgba(255,107,107,.08)':'rgba(255,255,255,.02)';
+        ctx.fill();
       }
 
-      // Houses around pole (tiny dots)
-      if(step<=2||pi%8===0){
-        for(let hi=0;hi<p.houses.length;hi++){
-          const hh=p.houses[hi];
-          const a=hi/p.houses.length*Math.PI*2;
-          const hx=p.x+Math.cos(a)*(size+6);
-          const hy=p.y+Math.sin(a)*(size+6);
-          const hc=hh.hasEV?COL.ev:hh.hasBatt?COL.batt:hh.hasHP?COL.hp:hh.hasAC?COL.ac:COL.base;
-          const intensity=Math.min(1,(hh.load-hh.drReduce)/8);
-          ctx.globalAlpha=.3+intensity*.7;
-          ctx.fillStyle=hc;
-          ctx.fillRect(hx-1.5,hy-1.5,3,3);
+      // Voltage violation glow
+      if(p.voltage<V_MIN){
+        ctx.beginPath();ctx.arc(p.x,p.y,sz+6,0,Math.PI*2);
+        ctx.fillStyle='rgba(255,107,107,.12)';ctx.fill();
+      }
+
+      // PV reverse flow indicator (green glow)
+      const pvGen=p.houses.reduce((s,h)=>s+h.gen,0);
+      if(pvGen>poleLoad*0.5){
+        ctx.beginPath();ctx.arc(p.x,p.y,sz+4,0,Math.PI*2);
+        ctx.fillStyle='rgba(81,207,102,.08)';ctx.fill();
+      }
+
+      // Pole dot (柱上変圧器)
+      ctx.beginPath();ctx.arc(p.x,p.y,sz,0,Math.PI*2);
+      ctx.fillStyle=vc;ctx.globalAlpha=0.8;ctx.fill();ctx.globalAlpha=1;
+
+      // 変圧器 symbol for every 5th pole
+      if(p.idx%5===0||p.branchIdx===0){
+        ctx.strokeStyle=vc;ctx.lineWidth=1;
+        ctx.beginPath();ctx.arc(p.x,p.y,sz+2,0,Math.PI*2);ctx.stroke();
+      }
+
+      // DR indicator
+      if(drActive){
+        const drHouses=p.houses.filter(h=>h.drReduce>0.1);
+        if(drHouses.length>0){
+          ctx.fillStyle='rgba(81,207,102,.5)';
+          ctx.beginPath();ctx.arc(p.x+sz+3,p.y-sz-1,2,0,Math.PI*2);ctx.fill();
         }
-        ctx.globalAlpha=1;
       }
 
-      // Voltage label for some poles
-      if(pi%20===0&&pi>0){
-        ctx.fillStyle=vc;ctx.font='9px monospace';ctx.textAlign='left';
-        ctx.fillText(p.voltage.toFixed(3)+'pu',p.x+size+4,p.y+3);
+      // Houses (tiny squares around pole)
+      for(let hi=0;hi<Math.min(p.houses.length,8);hi++){
+        const hh=p.houses[hi];
+        const a=(hi/Math.min(p.houses.length,8))*Math.PI*2-Math.PI/2;
+        const hr=sz+8;
+        const hx=p.x+Math.cos(a)*hr;
+        const hy=p.y+Math.sin(a)*hr;
+
+        let hc='#2a2a4a';
+        if(hh.drReduce>0.1)hc='#51cf66';
+        else if(hh.hasEV&&hh.load>hh.basePow+2)hc='#ffa94d';
+        else if(hh.hasPV&&hh.gen>1)hc='#fcc419';
+        else if(hh.hasBatt)hc='#51cf66';
+        else if(hh.hasAC&&hh.load>hh.basePow+1)hc='#74c0fc';
+        else hc='#2a2a4a';
+
+        const intensity=Math.min(1,Math.max(0,(hh.load-hh.gen)/6));
+        ctx.globalAlpha=0.3+intensity*0.7;
+        ctx.fillStyle=hc;
+        ctx.fillRect(hx-1.5,hy-1.5,3,3);
+      }
+      ctx.globalAlpha=1;
+
+      // Voltage labels
+      if((p.idx%10===0&&p.branchFrom<0)||(p.branchIdx===p.total-1)){
+        ctx.fillStyle=vc;ctx.font='8px monospace';ctx.textAlign='left';
+        ctx.fillText(p.voltage.toFixed(3),p.x+sz+5,p.y+3);
       }
     }
   }
 
   // ── Load curve (bottom left) ──
-  const cX=20,cY=H-160,cW=W*.33,cH=130;
-  ctx.fillStyle='rgba(14,14,30,.85)';roundRect(ctx,cX,cY,cW,cH,8);ctx.fill();
-  ctx.strokeStyle='#252545';ctx.lineWidth=1;roundRect(ctx,cX,cY,cW,cH,8);ctx.stroke();
-  ctx.fillStyle='#6c7086';ctx.font='10px sans-serif';ctx.textAlign='left';
-  ctx.fillText('24h Load Profile',cX+10,cY+14);
+  drawLoadCurve(h);
 
-  // Draw load history
-  if(loadHistory.length>1){
-    const maxY=6000;
-    // Limit line
-    ctx.beginPath();ctx.strokeStyle='rgba(255,107,107,.4)';ctx.setLineDash([4,4]);
-    const limY=cY+cH-5-(5000/maxY)*(cH-20);
-    ctx.moveTo(cX+5,limY);ctx.lineTo(cX+cW-5,limY);ctx.stroke();ctx.setLineDash([]);
-    ctx.fillStyle='#ff6b6b';ctx.font='8px monospace';ctx.fillText('5MW',cX+cW-28,limY-3);
+  // ── Voltage profile (bottom center-left) ──
+  drawVoltageProfile();
 
-    // Load curve
-    ctx.beginPath();ctx.strokeStyle='#f9e2af';ctx.lineWidth=1.5;
-    for(let i=0;i<loadHistory.length;i++){
-      const x=cX+5+(i/96)*( cW-10);
-      const y=cY+cH-5-(loadHistory[i]/maxY)*(cH-20);
-      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
-    }
-    ctx.stroke();
-
-    // DR line
-    if(drHistory.length>0){
-      ctx.beginPath();ctx.strokeStyle='#51cf66';ctx.lineWidth=1;ctx.setLineDash([3,3]);
-      for(let i=0;i<drHistory.length;i++){
-        const x=cX+5+(i/96)*(cW-10);
-        const y=cY+cH-5-(drHistory[i]/maxY)*(cH-20);
-        i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
-      }
-      ctx.stroke();ctx.setLineDash([]);
-    }
-
-    // Current time marker
-    const cx2=cX+5+((loadHistory.length-1)/96)*(cW-10);
-    ctx.beginPath();ctx.strokeStyle='rgba(255,255,255,.2)';ctx.lineWidth=1;
-    ctx.moveTo(cx2,cY+20);ctx.lineTo(cx2,cY+cH-5);ctx.stroke();
-  }
-
-  // Time axis labels
-  ctx.fillStyle='#555';ctx.font='8px monospace';ctx.textAlign='center';
-  for(let t=0;t<=24;t+=6){
-    const x=cX+5+(t/24)*(cW-10);
-    ctx.fillText(t+':00',x,cY+cH+10);
-  }
-
-  // ── Data Space activity log (bottom center) ──
-  if(dsLog.length>0){
-    const lX=cX+cW+16,lY=H-160,lW=W*.3,lH=130;
-    ctx.fillStyle='rgba(14,14,30,.85)';roundRect(ctx,lX,lY,lW,lH,8);ctx.fill();
-    ctx.strokeStyle='#252545';roundRect(ctx,lX,lY,lW,lH,8);ctx.stroke();
-    ctx.fillStyle='#6c7086';ctx.font='10px sans-serif';ctx.textAlign='left';
-    ctx.fillText('Data Space Activity',lX+10,lY+14);
-
-    const visible=dsLog.slice(-6);
-    for(let i=0;i<visible.length;i++){
-      const e=visible[i];
-      const ey=lY+26+i*17;
-      ctx.fillStyle=e.ok?'#51cf66':'#ff6b6b';ctx.font='9px monospace';
-      ctx.fillText(e.ok?'✓':'✗',lX+10,ey);
-      ctx.fillStyle='#888';
-      ctx.fillText(e.text,lX+24,ey);
-    }
+  // ── Legend ──
+  const lx=12,ly=H-28;
+  ctx.font='8px sans-serif';ctx.textAlign='left';
+  const legends=[['#51cf66','V≥0.97'],['#fcc419','0.95-0.97'],['#ff6b6b','V<0.95'],
+    ['#ffa94d','EV充電'],['#74c0fc','AC'],['#51cf66','蓄電池/DR'],['#fcc419','PV発電']];
+  let lxx=lx;
+  for(const[c,t]of legends){
+    ctx.fillStyle=c;ctx.fillRect(lxx,ly,8,8);
+    ctx.fillStyle='#555580';ctx.fillText(t,lxx+11,ly+7);
+    lxx+=ctx.measureText(t).width+22;
   }
 }
 
-function roundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath()}
+const loadHist=[],drHist=[];
+function drawLoadCurve(h){
+  const x0=12,y0=H-170,w=W*0.26,ht=120;
+  ctx.fillStyle='rgba(10,10,24,.9)';rr(ctx,x0,y0,w,ht,6);ctx.fill();
+  ctx.strokeStyle='#1e1e40';rr(ctx,x0,y0,w,ht,6);ctx.stroke();
+  ctx.fillStyle='#555580';ctx.font='9px sans-serif';ctx.textAlign='left';
+  ctx.fillText('系統負荷 (kW)',x0+8,y0+12);
 
-// ── Simulation state ──
-let step=0,running=false,lastTime=0,accum=0;
-const SPEED=100,STEPS=96;
-const loadHistory=[],drHistory=[];
-const dsLog=[];
-let drActive=false,secOK=0,secNO=0;
+  if(loadHist.length<2)return;
+  const mx=6500;
+  // Limit line
+  ctx.beginPath();ctx.strokeStyle='rgba(255,107,107,.35)';ctx.setLineDash([3,3]);ctx.lineWidth=1;
+  const ly=y0+ht-8-(5000/mx)*(ht-22);
+  ctx.moveTo(x0+4,ly);ctx.lineTo(x0+w-4,ly);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='#ff6b6b';ctx.font='7px monospace';ctx.fillText('5MW',x0+w-24,ly-2);
+
+  // Load line
+  ctx.beginPath();ctx.strokeStyle='#f9e2af';ctx.lineWidth=1.5;
+  for(let i=0;i<loadHist.length;i++){
+    const px=x0+4+(i/96)*(w-8);
+    const py=y0+ht-8-(loadHist[i]/mx)*(ht-22);
+    i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+  }ctx.stroke();
+
+  if(drHist.length>0){
+    ctx.beginPath();ctx.strokeStyle='#51cf66';ctx.lineWidth=1;
+    for(let i=0;i<drHist.length;i++){
+      const px=x0+4+(i/96)*(w-8);
+      const py=y0+ht-8-(drHist[i]/mx)*(ht-22);
+      i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+    }ctx.stroke();
+  }
+
+  // Time axis
+  ctx.fillStyle='#444';ctx.font='7px monospace';ctx.textAlign='center';
+  for(let t=0;t<=24;t+=6)ctx.fillText(t+':00',x0+4+(t/24)*(w-8),y0+ht+9);
+}
+
+function drawVoltageProfile(){
+  const x0=W*0.26+24,y0=H-170,w=W*0.22,ht=120;
+  ctx.fillStyle='rgba(10,10,24,.9)';rr(ctx,x0,y0,w,ht,6);ctx.fill();
+  ctx.strokeStyle='#1e1e40';rr(ctx,x0,y0,w,ht,6);ctx.stroke();
+  ctx.fillStyle='#555580';ctx.font='9px sans-serif';ctx.textAlign='left';
+  ctx.fillText('電圧プロファイル (pu)',x0+8,y0+12);
+
+  const vMin=0.88,vMax=1.06;
+  // Limit line
+  const limY=y0+ht-8-((V_MIN-vMin)/(vMax-vMin))*(ht-22);
+  ctx.beginPath();ctx.strokeStyle='rgba(255,107,107,.35)';ctx.setLineDash([3,3]);ctx.lineWidth=1;
+  ctx.moveTo(x0+4,limY);ctx.lineTo(x0+w-4,limY);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='#ff6b6b';ctx.font='7px monospace';ctx.fillText('0.95',x0+w-22,limY-2);
+
+  for(let fi=0;fi<grid.feeders.length;fi++){
+    const f=grid.feeders[fi];
+    ctx.beginPath();ctx.strokeStyle=f.color;ctx.lineWidth=1.5;ctx.globalAlpha=0.7;
+    for(let i=0;i<f.trunks.length;i++){
+      const px=x0+4+(i/f.trunks.length)*(w-8);
+      const py=y0+ht-8-((f.trunks[i].voltage-vMin)/(vMax-vMin))*(ht-22);
+      i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+    }ctx.stroke();ctx.globalAlpha=1;
+  }
+}
+
+// ── Simulation ──
+let step=0,running=false,lastT=0,acc=0,drActive=false;
+const SPEED=90,STEPS=96;
+let dsOK=0,dsNO=0,dsAU=0,dsCT=0;
+const elogData=[];
 
 const events=[
-  [0,'🌙 深夜 — ベース負荷のみ'],
-  [24,'🌅 早朝 — 住宅が起床'],
-  [36,'☀️ 午前 — PV発電ピーク'],
-  [48,'🔥 正午 — エアコン起動'],
-  [52,'⚡ 13:00 — EV帰宅充電開始'],
-  [54,'📋 DSO → カタログに制約メタデータ公開'],
-  [55,'🤝 Aggregator → 契約交渉 OFFERED→ACTIVE'],
-  [55,'🛡️ Spy → アクセス試行 → DENIED (契約なし)'],
-  [55,'🛡️ Spy → トポロジ → DENIED (感度違反)'],
-  [56,'🔴 14:00 — DSO: 混雑検出! DR発動!','dr'],
-  [58,'📊 Aggregator: 柔軟性 966kW 提出 (EV45%/AC25%/Batt20%/HP10%)'],
-  [60,'⚡ Kafka: dispatch-commands → 236kW 削減指令'],
-  [64,'📉 16:00 — 負荷ピーク → DR抑制中'],
-  [68,'✅ 17:00 — 混雑解消! 85%→80%'],
-  [70,'🔐 Prosumer: research同意撤回 → 即拒否'],
-  [72,'⚡ DSO: 緊急オーバーライド (監査記録付き)'],
-  [76,'🔵 19:00 — DR終了、通常運転復帰','drend'],
-  [84,'🌙 21:00 — 負荷低下'],
-  [92,'📜 監査完了: 8エントリ (5成功+3拒否) SHA-256 ✓'],
+  [0,'🌙 深夜ベース負荷'],
+  [24,'🌅 起床、負荷上昇開始'],
+  [32,'☀️ PV発電開始 (逆潮流あり)'],
+  [44,'🔥 AC負荷上昇'],
+  [52,'📋 DSO: 制約メタデータをカタログに登録','ds'],
+  [53,'🔍 Aggregator: カタログで制約データを発見','ds'],
+  [54,'📝 契約交渉: OFFERED → NEGOTIATING → ACTIVE','ds'],
+  [54,'🛡️ Spy: アクセス試行 → DENIED (契約なし)','deny'],
+  [54,'🛡️ Spy: トポロジ要求 → DENIED (感度HIGH)','deny'],
+  [55,'⚡ EV帰宅充電集中 → 末端電圧低下'],
+  [56,'🔴 DSO: 混雑+電圧逸脱検出 → DR発動','dr'],
+  [57,'📊 Aggregator: 柔軟性エンベロープ提出','ds'],
+  [58,'⚡ Kafka: dispatch-commands 送信','ds'],
+  [60,'🔌 EV充電制御: 遅延充電に切替','ds'],
+  [62,'🔋 蓄電池: V2H放電開始','ds'],
+  [64,'❄️ AC: 設定温度+2℃','ds'],
+  [66,'📉 負荷ピーク通過 → 電圧回復中'],
+  [68,'✅ 電圧逸脱解消 → 全柱0.95pu以上','ds'],
+  [70,'🔐 Prosumer: research同意撤回 → 即拒否','deny'],
+  [72,'⚡ DSO: 緊急オーバーライド (監査記録付)','ds'],
+  [76,'🔵 DR終了 → 通常運転復帰','drend'],
+  [80,'🌆 PV発電終了 → 負荷低下'],
+  [88,'📜 監査完了: SHA-256ハッシュ付き全記録','ds'],
 ];
 
 function tick(ts){
   if(!running)return;
-  if(!lastTime)lastTime=ts;
-  accum+=ts-lastTime;lastTime=ts;
+  if(!lastT)lastT=ts;
+  acc+=ts-lastT;lastT=ts;
 
-  while(accum>=SPEED&&step<STEPS){
-    accum-=SPEED;
-    const h=step*.25;
+  while(acc>=SPEED&&step<STEPS){
+    acc-=SPEED;
+    const h=step*0.25;
 
     // Events
     for(const[es,etxt,etype]of events){
       if(step===es){
-        document.getElementById('event-msg').textContent=etxt;
-        if(etype==='dr'){drActive=true;document.getElementById('p-dr').style.display='block';document.getElementById('p-sec').style.display='block'}
+        addLog(etxt,etype!=='deny');
+        if(etype==='dr')drActive=true;
         if(etype==='drend')drActive=false;
-        // Log to DS activity
-        if(etxt.includes('DENIED')){dsLog.push({ok:false,text:etxt.slice(etxt.indexOf(' ')+1,80)});secNO++}
-        else if(etxt.includes('Aggregator')||etxt.includes('DSO')||etxt.includes('Kafka')||etxt.includes('Prosumer')||etxt.includes('監査')){
-          dsLog.push({ok:true,text:etxt.slice(etxt.indexOf(' ')+1,80)});if(!etxt.includes('DENIED'))secOK++}
+        if(etype==='ds'){dsOK++;dsAU++;if(!dsCT)dsCT=1}
+        if(etype==='deny'){dsNO++;dsAU++}
       }
     }
 
-    computeLoads(h,drActive);
-    const totalLoad=feeders.reduce((s,f)=>s+f.totalLoad,0);
-    loadHistory.push(totalLoad);
-    if(drActive){
-      let noDR=0;for(const f of feeders)for(const p of f.poles)for(const hh of p.houses)noDR+=hh.load;
-      drHistory.push(noDR);
-    }else if(drHistory.length>0)drHistory.push(totalLoad);
+    computeHouseLoads(h);
+    let drInfo={totalRed:0,nEV:0,nBatt:0,nAC:0};
+    if(drActive)drInfo=applyDR(h);
+    else{for(const f of grid.feeders)for(const p of f.allPoles)for(const hh of p.houses){hh.drReduce=0;hh.drType=''}}
 
-    // Update HUD
+    const pf=[];
+    for(const f of grid.feeders)pf.push(powerFlow(f));
+
+    const totalLoad=pf.reduce((s,r)=>s+r.totalLoad,0);
+    loadHist.push(totalLoad);
+    if(drActive){
+      let nodr=0;for(const f of grid.feeders)for(const p of f.allPoles)for(const hh of p.houses)nodr+=Math.max(0,hh.load-hh.gen);
+      drHist.push(nodr);
+    }else if(drHist.length)drHist.push(totalLoad);
+
+    // Update UI
     const pct=totalLoad/5000*100;
-    document.getElementById('p-load').textContent=totalLoad.toFixed(0)+' kW';
-    document.getElementById('p-load').style.color=pct>85?'#ff6b6b':pct>70?'#fcc419':'#51cf66';
-    document.getElementById('p-load-bar').style.width=Math.min(100,pct)+'%';
-    document.getElementById('p-load-bar').style.background=pct>85?'#ff6b6b':pct>70?'#fcc419':'#51cf66';
+    document.getElementById('r-load').textContent=totalLoad.toFixed(0)+' kW';
+    document.getElementById('r-load').style.color=pct>85?'#ff6b6b':pct>70?'#fcc419':'#51cf66';
+    document.getElementById('r-bar').style.width=Math.min(100,pct)+'%';
+    document.getElementById('r-bar').style.background=pct>85?'#ff6b6b':pct>70?'#fcc419':'#51cf66';
 
     for(let fi=0;fi<2;fi++){
-      const f=feeders[fi];const pre=fi===0?'f1':'f2';
-      document.getElementById('p-'+pre+'-load').textContent=f.totalLoad.toFixed(0)+' kW';
-      document.getElementById('p-'+pre+'-v').textContent=f.minV.toFixed(3)+' pu';
-      document.getElementById('p-'+pre+'-v').style.color=f.minV<.95?'#ff6b6b':f.minV<.97?'#fcc419':'#51cf66';
-      document.getElementById('p-'+pre+'-viol').textContent=f.violations;
-      document.getElementById('p-'+pre+'-viol').style.color=f.violations>0?'#ff6b6b':'#51cf66';
+      const r=pf[fi],pre=fi===0?'f1':'f2';
+      document.getElementById('r-'+pre+'-p').textContent=r.totalLoad.toFixed(0)+' kW';
+      document.getElementById('r-'+pre+'-v').textContent=r.minV.toFixed(3)+' pu';
+      document.getElementById('r-'+pre+'-v').style.color=voltC(r.minV);
+      document.getElementById('r-'+pre+'-viol').textContent=r.totalViols+' 柱';
+      document.getElementById('r-'+pre+'-viol').style.color=r.totalViols>0?'#ff6b6b':'#51cf66';
+      document.getElementById('r-'+pre+'-i').textContent=r.maxI.toFixed(0)+' A'+(r.maxI>I_RATED*0.8?' ⚠':'');
     }
 
-    if(drActive){
-      const red=feeders.reduce((s,f)=>s+f.poles.reduce((s2,p)=>s2+p.houses.reduce((s3,hh)=>s3+hh.drReduce,0),0),0);
-      document.getElementById('p-dr-status').textContent='ACTIVE';
-      document.getElementById('p-dr-kw').textContent=red.toFixed(0)+' kW';
-      document.getElementById('p-dr-acc').textContent='94%';
-    }else if(step>76){
-      document.getElementById('p-dr-status').textContent='COMPLETE';document.getElementById('p-dr-status').style.color='#6c7086';
+    if(drActive||step>76){
+      document.getElementById('rc-dr').style.display='block';
+      document.getElementById('r-dr-st').textContent=drActive?'ACTIVE':'COMPLETE';
+      document.getElementById('r-dr-st').style.color=drActive?'#51cf66':'#555580';
+      document.getElementById('r-dr-kw').textContent=drInfo.totalRed.toFixed(0)+' kW';
+      document.getElementById('r-dr-ev').textContent=drInfo.nEV+' 台';
+      document.getElementById('r-dr-bt').textContent=drInfo.nBatt+' 台';
+      document.getElementById('r-dr-ac').textContent=drInfo.nAC+' 台';
     }
-    document.getElementById('p-sec-ok').textContent=secOK;
-    document.getElementById('p-sec-no').textContent=secNO;
+    if(dsCT>0){
+      document.getElementById('rc-ds').style.display='block';
+      document.getElementById('r-ds-ct').textContent=dsCT;
+      document.getElementById('r-ds-ok').textContent=dsOK;
+      document.getElementById('r-ds-no').textContent=dsNO;
+      document.getElementById('r-ds-au').textContent=dsAU;
+    }
 
-    const hours=Math.floor(h),mins=Math.floor((h-hours)*60);
-    document.getElementById('t-clock').textContent=String(hours).padStart(2,'0')+':'+String(mins).padStart(2,'0');
+    const hrs=Math.floor(h),mns=Math.floor((h-hrs)*60);
+    document.getElementById('clk').textContent=String(hrs).padStart(2,'0')+':'+String(mns).padStart(2,'0');
 
     step++;
   }
 
   if(step>=STEPS){
-    document.getElementById('event-msg').textContent='🔄 24時間完了 — 3秒後にリスタート';
-    setTimeout(()=>{step=0;loadHistory.length=0;drHistory.length=0;dsLog.length=0;drActive=false;secOK=0;secNO=0;
-      document.getElementById('p-dr').style.display='none';document.getElementById('p-sec').style.display='none';
-      lastTime=0;accum=0;requestAnimationFrame(tick)},3000);
-    draw(24,false,layoutPoles());return;
+    addLog('🔄 24時間完了 — 3秒後にリスタート',true);
+    setTimeout(()=>{step=0;loadHist.length=0;drHist.length=0;drActive=false;dsOK=0;dsNO=0;dsAU=0;dsCT=0;
+      elogData.length=0;document.getElementById('elog-lines').innerHTML='';
+      document.getElementById('rc-dr').style.display='none';document.getElementById('rc-ds').style.display='none';
+      lastT=0;acc=0;requestAnimationFrame(tick)},3000);
+    layout();drawGrid(24,false,{},{});return;
   }
 
-  draw(step*.25,drActive,layoutPoles());
+  layout();drawGrid(step*0.25,drActive,{},{});
   requestAnimationFrame(tick);
 }
 
-function startSim(){
-  document.getElementById('start-screen').classList.add('hidden');
-  ['hud','clock','panel','event-bar','legend-bar'].forEach(id=>document.getElementById(id).classList.remove('hidden'));
-  running=true;requestAnimationFrame(tick);
+function addLog(text,ok){
+  elogData.push({text,ok});
+  const el=document.getElementById('elog-lines');
+  const d=document.createElement('div');
+  d.className='eline '+(text.includes('DENIED')?'no':text.includes('緊急')?'em':'ok');
+  d.textContent=(ok?'✓ ':'✗ ')+text.replace(/^[^\s]+\s/,'');
+  el.appendChild(d);
+  // Keep last 12
+  while(el.children.length>12)el.removeChild(el.firstChild);
+  el.scrollTop=el.scrollHeight;
+}
+
+function go(){
+  document.getElementById('start').classList.add('hidden');
+  document.getElementById('ui').classList.remove('hidden');
+  buildGrid();
+  running=true;
+  requestAnimationFrame(tick);
 }
 </script>
 </body>
