@@ -960,4 +960,734 @@ make run-all
 
 ---
 
+## 17. デモで起きていることの詳細プロセス
+
+本章では、デモの各ステップで **何が** 、**なぜ** 、**どのコードで** 起きているかを追跡する。
+
+### 17.1 混雑管理デモ：1ステップずつ
+
+#### Step 0: インフラ初期化
+
+```
+ContractManager()  → 契約の状態遷移マシンを起動
+PolicyEngine()     → ポリシー判定エンジンを起動
+AuditLogger()      → 監査ログファイルを準備（JSONL形式）
+```
+
+この時点ではデータ交換は一切不可能。参加者もアセットも登録されていない。
+
+#### Step 1: 参加者登録 — 「この世界に誰がいるか」
+
+```python
+dso = Participant(
+    id="dso-001",
+    name="Tokyo Distribution Grid",
+    roles=["dso_operator"],              # ← このロールが感度ティアの鍵
+    certificate_dn="CN=dso-001,O=Tokyo DSO,C=JP",  # ← mTLS で検証される
+)
+policy_engine.register_participant(dso)
+```
+
+**ここで何が起きるか:**
+- PolicyEngine の内部テーブルに `dso-001` が登録される
+- 以後のポリシー評価で `dso-001` のロール（`dso_operator`）が参照される
+- `dso_operator` ロールは `HIGH` 感度のデータにアクセス可能
+- `aggregator` ロールは `MEDIUM` まで
+- `unknown` ロールはどの感度ティアにもアクセス不可
+
+**なぜ全員を登録するのか:**
+未登録の参加者からのリクエストは `ParticipantNotRegisteredError` で自動拒否される。これにより「知らない相手とはデータを交換しない」が強制される。
+
+#### Step 2: 負荷シミュレーション — 「現実の電力系統をモデル化」
+
+```python
+data = generate_households(1000)
+# → 1000軒の15分間隔負荷プロファイルを生成
+#    EV充電 (300軒): 3-7kW、16:30頃にピーク
+#    AC (700軒): 1-2.5kW、12:00-18:00
+#    ヒートポンプ (100軒): 1.5-3kW
+#    蓄電池 (200軒): 5-13kWh
+```
+
+**ここで何が起きるか:**
+- NumPy で1000軒 × 96タイムステップ（24時間/15分）の負荷行列を生成
+- 各世帯にランダムにDER機器を割り当て
+- ベース負荷 + EV + AC + HP を合計 → フィーダー全体で 4236kW
+- 制御可能負荷（DR対象）を別途計算
+
+**なぜ15分間隔か:**
+日本の電力市場のインバランス計量が30分単位。15分間隔はその半分で、需要予測にも十分な粒度。
+
+#### Step 3: 混雑検出と制約公開 — 「問題の定義」
+
+```python
+constraint = FeederConstraint(
+    feeder_id="F-101",
+    max_active_power_kw=5000,
+    congestion_level=0.85,    # ← 4236/5000 = 84.7%
+)
+```
+
+```python
+constraint_asset = DataAsset(
+    id="asset-constraint-f101",
+    provider_id="dso-001",
+    sensitivity=SensitivityTier.MEDIUM,  # ← アグリゲーターがアクセス可能
+    policy_metadata={"purpose": "congestion_management", "contract_required": "true"},
+)
+policy_engine.register_asset(constraint_asset)
+```
+
+**ここで何が起きるか:**
+1. DSO が CIM モデルでフィーダー制約を作成
+2. そのメタデータ（実データではない）をカタログに登録
+3. `policy_metadata` に「混雑管理目的」「契約必須」を明記
+4. `MEDIUM` 感度なので `aggregator` ロールからアクセス可能（契約があれば）
+
+#### Step 4: 不正アクセスの拒否 — 「セキュリティの証明」
+
+```python
+# Spy は OFFERED 状態の契約しか持っていない
+fake_contract = DataUsageContract(status=ContractStatus.OFFERED, ...)
+
+decision = policy_engine.evaluate(
+    requester_id="spy-001",
+    contract=fake_contract,
+    purpose="espionage",
+)
+# → allowed=False
+# → reason="contract is not active (status=offered)"
+```
+
+**ここで何が起きるか:**
+1. PolicyEngine が契約のステータスを確認 → `OFFERED` は `ACTIVE` ではない → 拒否
+2. 仮に `ACTIVE` だったとしても、目的が `"espionage"` なので契約の目的と不一致 → 拒否
+3. さらに `spy-001` のロールが `"unknown"` なので感度ティアチェックでも拒否
+4. **3重の防御**が機能している
+
+**監査記録:**
+```
+audit_log.log_exchange(
+    requester_id="spy-001",
+    outcome=AuditOutcome.DENIED,  # ← 拒否も記録される
+)
+```
+
+拒否されたアクセスも全て記録される。これにより不正アクセスの試行を事後的に検知・調査できる。
+
+#### Step 5: 契約交渉 — 「信頼関係の構築」
+
+```python
+offer = ContractOffer(
+    provider_id="dso-001",
+    consumer_id="agg-001",
+    purpose="congestion_management",
+    emergency_override=True,       # ← 緊急時のDSOアクセスを許可
+    valid_from=NOW,
+    valid_until=NOW + 90日,
+)
+
+contract = contract_mgr.offer_contract(offer)    # → status: OFFERED
+contract_mgr.negotiate_contract(contract_id)     # → status: NEGOTIATING
+contract = contract_mgr.accept_contract(contract_id)  # → status: ACTIVE
+```
+
+**ここで何が起きるか:**
+1. `offer_contract`: 新しい契約IDを生成し、`OFFERED` 状態で保存
+2. `negotiate_contract`: 状態を `NEGOTIATING` に遷移（条件修正フェーズ）
+3. `accept_contract`: 状態を `ACTIVE` に遷移 → データ交換が可能に
+
+**なぜ3ステップか:**
+現実のビジネスでは、最初の条件提示がそのまま受諾されることは少ない。`NEGOTIATING` フェーズで条件を摺り合わせる余地を設計に組み込んでいる。
+
+#### Step 6: 柔軟性エンベロープ — 「個別DERを隠す」
+
+```python
+envelope = FlexibilityEnvelope(
+    pq_range=PQRange(p_min_kw=-966, p_max_kw=0, ...),
+    device_class_mix=[
+        DeviceClassMix(der_type=DERType.EV_CHARGER, share_pct=45, ...),
+        DeviceClassMix(der_type=DERType.BATTERY_STORAGE, share_pct=20, ...),
+    ],
+    response_confidence=ResponseConfidence(level=ConfidenceLevel.HIGH, probability_pct=92),
+)
+```
+
+**ここで何が起きるか:**
+- 1000台のDERの状態を**集約**して1つのエンベロープにする
+- DSO に見えるのは「966kW の下げ柔軟性、EV 45%・蓄電池 20%」だけ
+- 個別のEVの充電状態、個別の蓄電池のSOCは**一切見えない**
+
+**なぜこれが重要か:**
+個別DERの状態はアグリゲーターのビジネス資産。DSO に渡す必要はない。DSO が必要なのは「このフィーダーで何kW下げられるか」という集約情報だけ。
+
+#### Step 7: ディスパッチと実績 — 「制御の実行」
+
+```python
+dispatch_cmd = DispatchCommand(
+    target_power_kw=236,           # 236kW 削減要求
+    activation_time=NOW + 15min,
+    duration_minutes=300,
+)
+# → Kafka topic "dispatch-commands" 経由で送信
+
+actual = DispatchActual(
+    commanded_kw=236,
+    delivered_kw=222,              # 94% の実績
+    delivery_accuracy_pct=94.0,
+)
+# → Kafka topic "dispatch-actuals" 経由で報告
+```
+
+**なぜ Kafka か:**
+ディスパッチ指令は**リアルタイム性**が要求される。REST API のリクエスト-レスポンスでは遅延が発生し、特にネットワーク障害時に指令が失われる可能性がある。Kafka はメッセージを永続化し、受信者がオフラインでも回復後に指令を受け取れる。
+
+#### Step 8: プライバシーパイプライン — 「目的が出力を決める」
+
+```python
+# 同じデータに対して、目的によって異なる出力
+result_research = anonymizer.anonymize_demand_profile(profile, "research")
+# → AnonymizedLoadSeries (統計値のみ、ID除去)
+
+result_dr = anonymizer.anonymize_demand_profile(profile, "dr_dispatch")
+# → ControllableMarginResult (75.9 kW というスカラー値のみ)
+```
+
+**ここで何が起きるか:**
+1. `anonymize_demand_profile` が目的を `PURPOSE_DISCLOSURE_MAP` で参照
+2. `"research"` → `AGGREGATED` → 平均・標準偏差・ピークのみ、ID除去
+3. `"dr_dispatch"` → `CONTROLLABILITY_ONLY` → 制御可能マージンの単一スカラー値
+
+**同意撤回の即時性:**
+```python
+consent_mgr.revoke_consent(consent_id)
+# → この時点で、次のリクエストは即座に拒否される
+# → 「そのうち反映」ではなく「今この瞬間から」拒否
+```
+
+---
+
+## 18. なぜデータスペースが必要か
+
+### 18.1 現状の問題：データ共有の信頼危機
+
+電力セクターに限らず、組織間のデータ共有は以下の「信頼の壁」に阻まれている：
+
+#### 問題1: 「渡したら終わり」問題
+
+```
+従来のAPI連携:
+
+  DSO ──── API ────> Aggregator
+         （データ転送）
+
+  転送後、DSO はデータの行方を制御できない。
+  Aggregator が:
+    ✗ データを第三者に売却するかもしれない
+    ✗ 本来の目的と異なる用途に使うかもしれない
+    ✗ 必要以上に長期間保持するかもしれない
+    ✗ 適切なセキュリティで管理しないかもしれない
+
+データスペースの解決策:
+
+  DSO ──── Connector ────> Aggregator
+         │                │
+         │ 契約で制限:     │
+         │ • 目的: 混雑管理のみ
+         │ • 保持: 30日    │
+         │ • 再配布: 禁止  │
+         │ • 監査: 全記録  │
+```
+
+#### 問題2: プライバシーの構造的保護の欠如
+
+```
+従来のアプローチ:
+  「個人情報保護方針に同意します ☑」→ 全データが相手に渡る
+  → 形式的同意であり、技術的保護がない
+
+データスペースのアプローチ:
+  目的「研究」→ 統計値のみ自動変換して渡す
+  目的「DR」  → 制御マージンのスカラー値のみ渡す
+  目的なし    → 何も渡さない
+  → 技術的に不可能な状態を作る（生データが物理的に外に出ない）
+```
+
+#### 問題3: 監査不能な「闇のデータフロー」
+
+```
+従来のシステム:
+  「誰がいつどのデータにアクセスしたか？」
+  → ログがあるかもしれないが、改ざん可能
+  → 事業者間で形式が異なり、突合できない
+
+データスペースの解決策:
+  全交換を SHA-256 ハッシュ付きで記録
+  → リクエストとレスポンスの内容を暗号的に固定
+  → 後日「このデータは改ざんされていない」を数学的に証明可能
+```
+
+### 18.2 データスペースがもたらす価値
+
+| 価値 | 従来 | データスペース |
+|------|------|---------------|
+| **データ主権** | データを渡したら制御不能 | 契約で利用条件を機械的に強制 |
+| **信頼構築コスト** | 個別にNDA/データ利用契約 → 数ヶ月 | 標準化されたコネクタで自動契約 → 数分 |
+| **プライバシー** | 形式的同意 | 技術的に生データの流出を防止 |
+| **監査** | 各社バラバラのログ | 統一フォーマットで改ざん検出可能 |
+| **相互運用性** | 個別API開発 | セマンティックモデルで標準化 |
+| **スケーラビリティ** | N社間の連携 = N×(N-1)/2 の個別契約 | N社がデータスペースに参加するだけ |
+
+### 18.3 なぜ今、データスペースが必要なのか
+
+#### エネルギー転換の加速
+
+```
+2020年: EV 100万台 → 2030年: EV 3000万台（日本政府目標）
+
+EV が増えると:
+  → 夕方の充電集中 → フィーダーの熱容量超過
+  → 解決策: スマート充電（アグリゲーターが充電タイミングを制御）
+  → しかし: DSO のフィーダー制約データが必要
+  → しかし: DSO は系統トポロジをアグリゲーターに渡したくない
+  → 解決策: データスペースで必要最小限の制約データのみ、契約付きで共有
+```
+
+#### 規制の動向
+
+- **欧州**: Data Act (2024)、GDPR、再エネ指令で「データ主権」「目的制限」が法的要件に
+- **日本**: 電力データ活用の議論が進行中。スマートメーターデータの第三者提供ルール整備中
+- **国際**: IEC 63417 (Data Space for Energy) の標準化が進行中
+
+#### ビジネスの現実
+
+```
+DSO の本音:
+  「データを共有したい。でも系統トポロジは企業秘密。」
+  「共有するなら、相手の使い方を制御したい。」
+
+Aggregator の本音:
+  「DSO の制約データがないと最適なDR制御ができない。」
+  「でも個別DERの状態は自社の競争優位。渡したくない。」
+
+Prosumer の本音:
+  「電気代が下がるなら協力する。でもプライバシーは守りたい。」
+  「いつでも参加をやめられるようにしたい。」
+
+→ 全員の要求を同時に満たすのがデータスペース
+```
+
+---
+
+## 19. 他分野への展開可能性
+
+本プロジェクトのアーキテクチャは電力セクターに特化しているが、**コネクタの仕組み自体は汎用的**であり、同様の「データ主権を保ちつつ組織間でデータを共有したい」課題を持つ分野に応用可能である。
+
+### 19.1 横展開が可能な分野
+
+#### 医療・ヘルスケア
+
+```
+現在の課題:
+  病院A の患者データを研究機関B が使いたい
+  → 個人情報保護法の壁
+  → 患者の同意管理が煩雑
+  → データの二次利用追跡が困難
+
+データスペースで解決:
+  参加者: 病院 / 研究機関 / 患者
+  契約: 「匿名化した画像データを、がん研究目的でのみ、2年間利用可能」
+  匿名化: 目的=研究 → k-匿名化 + 準識別子除去
+  監査: 誰がいつどの患者データにアクセスしたか完全記録
+  同意: 患者がスマホから即座に同意撤回可能
+```
+
+| 電力セクター | 医療セクター |
+|-------------|-------------|
+| DSO | 病院 |
+| Aggregator | 研究機関・製薬会社 |
+| Prosumer | 患者 |
+| FeederConstraint | 診療データ |
+| FlexibilityEnvelope | 匿名化臨床データ |
+| DemandProfile | 患者バイタルデータ |
+| ConsentRecord | 患者同意記録 |
+
+#### 製造業・サプライチェーン
+
+```
+現在の課題:
+  自動車メーカーが部品サプライヤーの品質データを確認したい
+  → サプライヤーは製造プロセスの詳細を開示したくない
+  → 品質証明だけ共有したい
+
+データスペースで解決:
+  参加者: OEM / Tier1サプライヤー / Tier2サプライヤー
+  データ主権: 各サプライヤーの製造データはローカルに保持
+  契約: 「品質証明書データを、製品トレーサビリティ目的でのみ共有」
+  匿名化: 合格/不合格の集計のみ。個別製造パラメータは非開示
+```
+
+| 電力セクター | 製造業 |
+|-------------|--------|
+| DSO | OEM（自動車メーカー） |
+| Aggregator | Tier1サプライヤー |
+| Prosumer | Tier2サプライヤー |
+| CongestionSignal | 品質アラート |
+| FlexibilityEnvelope | 生産能力エンベロープ |
+| 監査証跡 | トレーサビリティ記録 |
+
+#### モビリティ・MaaS
+
+```
+現在の課題:
+  鉄道会社、バス会社、タクシー、シェアサイクルのデータを統合したい
+  → 各社の乗客データは機密
+  → しかし需要予測には横断データが必要
+
+データスペースで解決:
+  参加者: 鉄道 / バス / タクシー / 自治体
+  共有データ: 匿名化された乗降統計（個人の移動履歴ではなく）
+  契約: 「混雑緩和目的でのみ」「30日保持」
+  感度ティア: 個人移動データ = HIGH_PRIVACY, 駅別統計 = MEDIUM
+```
+
+#### 不動産・スマートシティ
+
+```
+参加者: ビルオーナー / エネルギー会社 / 自治体
+共有データ: ビルのエネルギー消費（匿名化）
+目的: 地域のカーボンフットプリント計算
+契約: 「CO2算定目的でのみ」「年次集計のみ」
+```
+
+#### 農業・食品トレーサビリティ
+
+```
+参加者: 農家 / 流通 / 小売 / 消費者
+共有データ: 生産履歴、農薬使用記録、温度管理記録
+目的: 食の安全、トレーサビリティ
+契約: 「食品安全確認目的」「産地偽装の検出」
+```
+
+### 19.2 再利用可能なコンポーネント
+
+本プロジェクトのコードで、電力に依存しない部分は以下の通り：
+
+| コンポーネント | 場所 | 汎用性 |
+|---------------|------|--------|
+| **ContractManager** | `src/connector/contract.py` | 完全に汎用。どの分野でもそのまま使用可能 |
+| **PolicyEngine** | `src/connector/policy.py` | 感度ティアとロールの定義を変えるだけ |
+| **AuditLogger** | `src/connector/audit.py` | 完全に汎用。SHA-256ハッシュ + JSONL |
+| **ConnectorMiddleware** | `src/connector/middleware.py` | FastAPI アプリならそのまま使用可能 |
+| **ConsentManager** | `src/participants/prosumer/consent.py` | 目的リストを変えるだけ |
+| **DataAnonymizer** | `src/participants/prosumer/anonymizer.py` | 開示レベルマッピングを変えるだけ |
+| **KeycloakAuthBackend** | `src/connector/auth.py` | Keycloak を使う限りそのまま |
+
+**変更が必要な部分:**
+
+| コンポーネント | 変更内容 |
+|---------------|---------|
+| `src/semantic/` | 分野固有のデータモデルに差し替え（FHIR、GS1等） |
+| `src/participants/` | 参加者ノードを分野に合わせて実装 |
+| `PURPOSE_DISCLOSURE_MAP` | 分野の目的と開示レベルのマッピングを再定義 |
+| `_DEFAULT_TIER_ROLES` | 分野のロールと感度ティアの対応を再定義 |
+
+### 19.3 導入のステップ
+
+他分野でデータスペースを構築する場合の推奨ステップ：
+
+```
+Step 1: ステークホルダー分析
+  → 誰が参加するか？各者のデータ主権の要求は？
+  → 例: 病院は患者データの主権を持つ。研究機関は解析結果の主権を持つ。
+
+Step 2: データアセットの洗い出し
+  → どんなデータが存在するか？感度分類は？
+  → 例: 患者バイタル=HIGH_PRIVACY, 匿名化統計=MEDIUM
+
+Step 3: ユースケースの定義
+  → どんなデータ交換が必要か？目的は？
+  → 例: がん研究のために匿名化画像を共有
+
+Step 4: セマンティックモデルの定義
+  → 業界標準があればそれを採用（FHIR, GS1, IFC等）
+  → なければ Pydantic で定義
+
+Step 5: 目的-開示レベルマッピングの定義
+  → 各目的に対して何を開示するか
+
+Step 6: コネクタの設定
+  → 本プロジェクトの connector/ をそのまま使用
+  → Keycloak レルムを設定
+  → 参加者ノードを実装
+
+Step 7: パイロット運用
+  → 2-3参加者で小規模に開始
+  → 契約テンプレートを整備
+
+Step 8: スケール
+  → 参加者を追加（コネクタ方式なのでN対Nが容易）
+```
+
+### 19.4 国際的な動向
+
+| イニシアチブ | 分野 | 関連性 |
+|-------------|------|--------|
+| **GAIA-X** | 欧州横断クラウド | 本プロジェクトの設計思想の源泉 |
+| **Catena-X** | 自動車産業 | サプライチェーンのデータスペース（VW, BMW等が参加） |
+| **Manufacturing-X** | 製造業全般 | Catena-X を他製造業に拡張 |
+| **Mobility Data Space** | モビリティ | ドイツの交通データスペース |
+| **European Health Data Space** | 医療 | EU全域の医療データ共有基盤 |
+| **Smart Energy Data Space** | エネルギー | 本プロジェクトが参考にしたドメイン |
+| **IDS Reference Architecture** | 汎用 | データスペースのリファレンスアーキテクチャ |
+| **Eclipse Dataspace Connector** | 汎用 | IDSA のオープンソース実装（Java） |
+
+本プロジェクト（Data Space Grid）は、これらの大規模イニシアチブの **設計原則を Python で軽量に実装した研究プロトタイプ** という位置づけである。本番環境では Eclipse Dataspace Connector (EDC) 等の成熟した実装と組み合わせることが想定される。
+
+---
+
+## 20. 標準化への道筋
+
+データスペースを一企業の独自ソリューションではなく、業界全体のインフラにするためには標準化が不可欠である。本章では、何を・どこで・どのように標準化すべきかを議論する。
+
+### 20.1 標準化すべき4つのレイヤー
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Level 4: ビジネスルール                                  │
+│    契約テンプレート、SLA、料金体系                          │
+│    → 業界団体・規制当局が主導                              │
+├─────────────────────────────────────────────────────────┤
+│  Level 3: セマンティックモデル                             │
+│    データの意味と構造の統一                                │
+│    → 国際標準化機関 (IEC, ISO, IEEE)                      │
+├─────────────────────────────────────────────────────────┤
+│  Level 2: コネクタプロトコル                               │
+│    契約交渉、ポリシー交換、監査フォーマット                  │
+│    → IDSA, Eclipse Foundation                            │
+├─────────────────────────────────────────────────────────┤
+│  Level 1: 通信・認証基盤                                  │
+│    mTLS, OIDC, Kafka プロトコル                           │
+│    → IETF, OpenID Foundation, Apache                     │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Level 1 と 2 は既に標準がある。** 本プロジェクトの主な標準化貢献は Level 3 と 4 に関わる。
+
+### 20.2 セマンティックモデルの標準化
+
+#### 現状: 規格の乱立
+
+```
+系統データ:
+  CIM (IEC 61970/61968) → 欧米の送配電
+  IEC 61850 → 変電所自動化
+  DLMS/COSEM → スマートメーター
+  → 3つの規格が重なり合い、マッピングが必要
+
+DER/DR:
+  OpenADR 2.0b → デマンドレスポンス
+  IEEE 2030.5 → スマートエネルギープロファイル
+  IEC 61850-7-420 → DER情報モデル
+  → 概念は似ているが、データ構造が異なる
+
+需要家データ:
+  規格なし → 各社独自
+```
+
+#### 本プロジェクトのアプローチ: Pydantic による「実行可能な仕様」
+
+```python
+# 従来の標準化: 100ページのPDF仕様書
+#   → 解釈の余地が大きい
+#   → 実装者によって異なる解釈
+#   → テストが困難
+
+# 本プロジェクト: Pydantic モデル = 実行可能な仕様
+class FeederConstraint(BaseModel):
+    feeder_id: str
+    max_active_power_kw: float = Field(..., gt=0)  # ← バリデーション付き
+    congestion_level: float = Field(..., ge=0, le=1)  # ← 範囲制約
+    sensitivity: SensitivityTier = SensitivityTier.MEDIUM  # ← デフォルト値
+```
+
+**メリット:**
+- **曖昧さがない**: コードがそのまま仕様。「最大有効電力は正の値」がバリデーションで強制される
+- **テスト可能**: 226のユニットテストが仕様の正確性を保証
+- **バージョン管理**: Git で仕様の変更履歴を追跡可能
+- **自動ドキュメント**: FastAPI の OpenAPI/Swagger が自動生成される
+
+#### 標準化への推奨ステップ
+
+```
+Phase 1: 実装ベースの合意形成（6-12ヶ月）
+  → 3-5の事業者がプロトタイプを共同テスト
+  → Pydantic モデルを共同で改善
+  → 実装を通じて仕様の問題点を洗い出す
+
+Phase 2: 業界プロファイルの策定（12-18ヶ月）
+  → 共同テストの結果を基に「日本版エネルギーデータスペースプロファイル」を策定
+  → CIM/IEC 61850 の既存標準との対応表を作成
+  → JSON Schema として公開（Pydantic モデルから自動生成可能）
+
+Phase 3: 国際標準への提案（18-36ヶ月）
+  → IEC TC57 (電力系統通信) に提案
+  → IEC 63417 (Data Space for Energy) への貢献
+  → OpenADR Alliance との連携
+```
+
+### 20.3 契約テンプレートの標準化
+
+契約の条件フィールドは標準化可能であり、そうすべきである：
+
+```python
+# 現在（本プロジェクト）: 自由記述
+ContractOffer(
+    purpose="congestion_management",        # ← 文字列
+    allowed_operations=["read"],            # ← リスト
+    retention_days=30,                      # ← 数値
+)
+
+# 将来（標準化後）: 列挙型 + コードリスト
+ContractOffer(
+    purpose=StandardPurpose.CONGESTION_MANAGEMENT,  # ← IEC定義の目的コード
+    allowed_operations=[StandardOp.READ],            # ← 標準操作コード
+    retention=RetentionPolicy.DAYS_30,               # ← 標準保持ポリシー
+)
+```
+
+#### 契約テンプレートの例
+
+```yaml
+# congestion_management_template.yaml
+template_id: "JPDS-CM-001"
+name: "配電系統混雑管理契約テンプレート"
+version: "1.0"
+
+parties:
+  provider:
+    role: dso_operator
+    obligations:
+      - publish_constraints_within: 5min
+      - update_frequency: 15min
+  consumer:
+    role: aggregator
+    obligations:
+      - respond_to_dispatch_within: 15min
+      - report_actuals_within: 1hour
+
+data_access:
+  assets: [feeder_constraint, congestion_signal]
+  operations: [read]
+  sensitivity_max: medium
+
+privacy:
+  anonymization_required: false  # 系統データなので不要
+  retention_max_days: 90
+  redistribution: prohibited
+
+emergency:
+  dso_override: true
+  notification: required
+  audit: enhanced
+
+sla:
+  availability: 99.5%
+  latency_max_ms: 500
+  support_hours: "24/7"
+```
+
+### 20.4 相互運用性テストの標準化
+
+異なるベンダーのコネクタが接続できることを保証するテスト仕様：
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  相互運用性テストスイート                                  │
+│                                                         │
+│  Test 1: 認証接続テスト                                   │
+│    コネクタA → mTLS + OIDC → コネクタB                    │
+│    期待: 正しい証明書で接続成功、不正証明書で接続拒否        │
+│                                                         │
+│  Test 2: カタログ相互運用テスト                            │
+│    コネクタA がアセット登録 → コネクタB が検索・発見          │
+│    期待: 検索結果にアセットが含まれる                       │
+│                                                         │
+│  Test 3: 契約交渉テスト                                   │
+│    コネクタA が提案 → コネクタB が承認                      │
+│    期待: 両者で契約ステータスが一致                         │
+│                                                         │
+│  Test 4: ポリシー強制テスト                                │
+│    契約なしでデータ要求 → 拒否                             │
+│    契約ありで要求 → 許可                                  │
+│    期待: 全交換に監査エントリ                              │
+│                                                         │
+│  Test 5: 匿名化テスト                                    │
+│    目的=research でデータ要求                              │
+│    期待: 個人特定不可能な集計データのみ返却                  │
+│                                                         │
+│  Test 6: 監査整合性テスト                                  │
+│    複数交換後、監査ログの完全性を検証                       │
+│    期待: 全交換に対応するエントリ、ハッシュ一致              │
+└─────────────────────────────────────────────────────────┘
+```
+
+**本プロジェクトの322テスト**は、この相互運用性テストスイートの原型として機能する。
+
+### 20.5 日本における推進体制の提案
+
+```
+推進主体の候補:
+  → 経済産業省 資源エネルギー庁（政策・規制面）
+  → NEDO / JST（研究開発資金）
+  → 電気学会 / 電力中央研究所（技術標準）
+  → OCCTO（広域的運営推進機関、系統データの管理）
+  → 各一般送配電事業者（実証フィールド）
+
+段階的アプローチ:
+  Year 1: 研究会の設立
+    → 本プロジェクトのような研究プロトタイプを複数開発
+    → ユースケースの洗い出しと優先順位付け
+
+  Year 2: 実証事業
+    → 2-3の送配電事業者エリアでパイロット
+    → アグリゲーター2-3社、需要家100-1000軒規模
+    → 契約テンプレートの実地検証
+
+  Year 3: 業界ガイドライン策定
+    → 実証の知見を基にガイドライン化
+    → セマンティックモデルの業界合意
+    → 相互運用性テスト仕様の確定
+
+  Year 4-5: 国際標準への貢献
+    → IEC TC57 への提案
+    → GAIA-X / IDSA への日本プロファイル登録
+    → アジア太平洋地域への展開
+```
+
+### 20.6 オープンソースと標準化の関係
+
+```
+オープンソース実装が標準化を加速する理由:
+
+  1. 「動くコード」が最強の仕様書
+     → 100ページの仕様書より、動くプロトタイプの方が合意形成が早い
+
+  2. フォーク可能
+     → 医療版、製造版、モビリティ版を同じ基盤から派生可能
+
+  3. テスト駆動
+     → 322テストが「仕様に準拠しているか」を自動検証
+
+  4. コミュニティ
+     → 利用者からのフィードバックが仕様を改善
+
+本プロジェクトの位置づけ:
+  → 標準化議論の「叩き台」としてのリファレンス実装
+  → MITライセンスで商用利用も自由
+  → セマンティックモデル部分を差し替えれば他分野にも適用可能
+```
+
+---
+
 *本解説書は Data Space Grid v0.1.0 に基づく。*
