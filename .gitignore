@@ -1,10 +1,25 @@
-# Auto Claude data directory
+# Auto Claude
 .auto-claude/
-
-# Auto Claude generated files
 .auto-claude-security.json
 .auto-claude-status
 .claude_settings.json
 .worktrees/
 .security-key
 logs/security/
+ACTIVE
+NEGOTIATING
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+
+# Data / caches
+data/
+audit/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
