@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>1000 Households — Live Demand Visualization</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a14;color:#cdd6f4;font-family:'SF Mono','Menlo',monospace;overflow:hidden}
+canvas{display:block}
+#hud{position:fixed;top:20px;left:30px;z-index:10;pointer-events:none}
+#hud h1{font-size:1.4rem;color:#00d2ff;margin-bottom:4px}
+#hud .sub{font-size:0.8rem;color:#6c7086;margin-bottom:12px}
+#stats{position:fixed;top:20px;right:30px;z-index:10;text-align:right;pointer-events:none}
+#stats .val{font-size:2rem;font-weight:800;line-height:1.1}
+#stats .lbl{font-size:0.7rem;color:#6c7086;margin-bottom:8px}
+#timeline{position:fixed;bottom:30px;left:30px;right:30px;z-index:10;pointer-events:none}
+#timeline .time{font-size:1.8rem;font-weight:800;color:#f9e2af}
+#timeline .event{font-size:0.9rem;color:#a6e3a1;margin-top:4px;min-height:1.2em}
+#legend{position:fixed;bottom:30px;right:30px;z-index:10;text-align:right;pointer-events:none}
+#legend div{font-size:0.75rem;margin-bottom:3px}
+#controls{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:20;
+  background:rgba(10,10,20,0.95);border:1px solid #2a2a4a;border-radius:16px;padding:40px 60px;text-align:center}
+#controls h2{font-size:1.6rem;color:#00d2ff;margin-bottom:12px}
+#controls p{color:#6c7086;margin-bottom:20px;font-size:0.9rem}
+#controls button{background:#00d2ff;color:#0a0a14;border:none;padding:14px 40px;border-radius:8px;
+  font-size:1.1rem;font-weight:700;cursor:pointer;font-family:inherit}
+#controls button:hover{background:#33ddff}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div id="controls">
+  <h2>1,000 Households × 24 Hours</h2>
+  <p>フィーダー F-101 の 1000 軒のデマンドをリアルタイムに可視化<br>
+  EV充電・エアコン・蓄電池・ヒートポンプが織りなす負荷の波</p>
+  <button onclick="start()">START</button>
+</div>
+<div id="hud" class="hidden">
+  <h1>Feeder F-101 — Live Demand</h1>
+  <div class="sub">1,000 Households | 250 Poles | 2 Feeders | Rated 5 MW</div>
+</div>
+<div id="stats" class="hidden">
+  <div class="val" id="s-load" style="color:#89b4fa">0 kW</div>
+  <div class="lbl">TOTAL LOAD</div>
+  <div class="val" id="s-pct" style="color:#a6e3a1">0%</div>
+  <div class="lbl">CAPACITY</div>
+  <div class="val" id="s-ctrl" style="color:#94e2d5">0 kW</div>
+  <div class="lbl">CONTROLLABLE</div>
+  <div class="val" id="s-dr" style="color:#6c7086">—</div>
+  <div class="lbl">DR STATUS</div>
+</div>
+<div id="timeline" class="hidden">
+  <div class="time" id="t-clock">00:00</div>
+  <div class="event" id="t-event"></div>
+</div>
+<div id="legend" class="hidden">
+  <div><span style="color:#fab387">■</span> EV Charging (300)</div>
+  <div><span style="color:#89b4fa">■</span> AC Load (700)</div>
+  <div><span style="color:#a6e3a1">■</span> Battery (200)</div>
+  <div><span style="color:#cba6f7">■</span> Heat Pump (100)</div>
+  <div><span style="color:#f38ba8">━</span> Feeder Limit (5 MW)</div>
+  <div style="margin-top:6px"><span style="color:#f9e2af">━</span> Aggregate Load</div>
+</div>
+<canvas id="c"></canvas>
+<script>
+const C = document.getElementById('c');
+const ctx = C.getContext('2d');
+let W, H;
+function resize() { W = C.width = innerWidth; H = C.height = innerHeight; }
+resize();
+addEventListener('resize', resize);
+
+// ── Config ──
+const N = 1000;
+const FEEDER_LIMIT = 5000;
+const STEPS = 96; // 15-min intervals over 24h
+const SPEED = 120; // ms per step (fast forward)
+
+// ── Generate 1000 households ──
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t^=t+Math.imul(t^t>>>7,61|t);return((t^t>>>14)>>>0)/4294967296}}
+const rng = mulberry32(42);
+const rand = () => rng();
+const randn = (mu, sigma) => { let u=0,v=0; while(!u)u=rand(); while(!v)v=rand(); return mu + sigma * Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); };
+
+const houses = [];
+for (let i = 0; i < N; i++) {
+  const hasEV = i < 300;
+  const hasAC = i < 700;
+  const hasBatt = i >= 300 && i < 500;
+  const hasHP = i >= 900;
+
+  const baseScale = Math.max(0.3, randn(1, 0.25));
+  const evPower = hasEV ? [3, 5, 6, 7, 11][Math.floor(rand()*5)] : 0;
+  const evStart = randn(16.5, 1.2);
+  const acPower = hasAC ? randn(1.8, 0.5) : 0;
+  const hpPower = hasHP ? randn(2.2, 0.5) : 0;
+  const battCap = hasBatt ? randn(9, 3) : 0;
+
+  // Pre-compute load curve
+  const loads = new Float32Array(STEPS);
+  const types = new Uint8Array(STEPS); // dominant type for color
+  for (let t = 0; t < STEPS; t++) {
+    const h = t * 0.25; // hour
+    let base = (1.5 + 0.8 * Math.sin(Math.PI * (h - 6) / 12)) * baseScale;
+    base = Math.max(0.3, base) + randn(0, 0.15);
+
+    let ev = 0;
+    if (hasEV && evPower > 0) {
+      ev = evPower * Math.exp(-0.5 * ((h - evStart) / 1.5) ** 2);
+      if (ev < 0.1) ev = 0;
+    }
+
+    let ac = 0;
+    if (hasAC && h >= 12 && h < 18) {
+      ac = acPower * (0.6 + 0.4 * rand());
+    }
+
+    let hp = 0;
+    if (hasHP && h >= 11 && h < 17) {
+      hp = hpPower * (0.5 + 0.5 * rand());
+    }
+
+    loads[t] = Math.max(0.2, base + ev + ac + hp);
+
+    // Dominant type for color
+    if (ev > ac && ev > hp) types[t] = 1; // EV
+    else if (ac > hp) types[t] = 2; // AC
+    else if (hp > 0) types[t] = 4; // HP
+    else types[t] = 0; // base
+  }
+
+  houses.push({
+    loads, types, hasEV, hasAC, hasBatt, hasHP,
+    evPower, acPower, hpPower, battCap, evStart,
+    x: rand() * 0.8 + 0.1, // random position for particle view
+    y: rand() * 0.6 + 0.2,
+    drReduction: 0,
+  });
+}
+
+// ── DR logic ──
+let drActive = false;
+let drStartStep = -1;
+function applyDR(step) {
+  const h = step * 0.25;
+  if (h < 14 || h > 19) return 0;
+
+  let totalReduction = 0;
+  const rampFactor = h < 14.5 ? (h - 14) / 0.5 : h > 18.5 ? (19 - h) / 0.5 : 1;
+
+  for (const house of houses) {
+    let reduction = 0;
+    // EV: shift charging
+    if (house.hasEV && house.evPower > 0) {
+      const evLoad = house.evPower * Math.exp(-0.5 * ((h - house.evStart) / 1.5) ** 2);
+      reduction += evLoad * 0.7 * rampFactor;
+    }
+    // AC: raise setpoint
+    if (house.hasAC && h >= 12 && h < 18) {
+      reduction += house.acPower * 0.25 * rampFactor;
+    }
+    // Battery: discharge
+    if (house.hasBatt) {
+      reduction += Math.min(3, house.battCap * 0.3) * rampFactor;
+    }
+    house.drReduction = reduction;
+    totalReduction += reduction;
+  }
+  return totalReduction;
+}
+
+// ── Aggregate computation ──
+function getAggregate(step) {
+  let total = 0, ctrl = 0;
+  for (const h of houses) {
+    let load = h.loads[step] - (drActive ? h.drReduction : 0);
+    total += Math.max(0.1, load);
+    ctrl += h.drReduction || 0;
+  }
+  return { total, ctrl };
+}
+
+// ── History for waveform ──
+const history = [];
+const historyDR = [];
+
+// ── Particle system for feeder visualization ──
+const particles = [];
+function spawnParticle(x, y, color, vx, vy, life) {
+  particles.push({ x, y, color, vx, vy, life, maxLife: life, size: 1 + rand() * 2 });
+}
+
+// ── Events ──
+const events = [
+  [0, '🌙 深夜 — ベース負荷のみ'],
+  [24, '🌅 早朝 — 住宅が起床し始める'],
+  [36, '☀️ 午前 — 太陽光発電がピーク'],
+  [48, '🔥 正午 — エアコンが起動開始'],
+  [52, '⚡ 13:00 — EV帰宅・充電開始'],
+  [56, '🔴 14:00 — DSO: 混雑検出! DR発動!', true],
+  [60, '⚡ 15:00 — DR制御中: EV充電シフト・蓄電池放電'],
+  [64, '📉 16:00 — 負荷ピーク → DR で抑制中'],
+  [68, '✅ 17:00 — 混雑解消! 85% → 80%'],
+  [72, '🔵 18:00 — DRランプダウン開始'],
+  [76, '🌆 19:00 — DR終了、通常運転に復帰'],
+  [84, '🌙 21:00 — 負荷が低下し始める'],
+  [92, '💤 23:00 — 深夜に向けて低負荷'],
+];
+
+// ── Animation state ──
+let step = 0;
+let running = false;
+let lastTime = 0;
+let accumulator = 0;
+let currentEvent = '';
+let drTotalReduction = 0;
+
+// ── Colors ──
+const COLORS = {
+  ev: '#fab387',
+  ac: '#89b4fa',
+  batt: '#a6e3a1',
+  hp: '#cba6f7',
+  base: '#45475a',
+  limit: '#f38ba8',
+  agg: '#f9e2af',
+  dr: '#a6e3a1',
+  bg: '#0a0a14',
+};
+
+function typeColor(type) {
+  return [COLORS.base, COLORS.ev, COLORS.ac, COLORS.batt, COLORS.hp][type] || COLORS.base;
+}
+
+// ── Drawing ──
+function draw() {
+  ctx.fillStyle = COLORS.bg;
+  ctx.fillRect(0, 0, W, H);
+
+  const h = step * 0.25;
+  const marginL = 80, marginR = 60, marginT = 80, marginB = 100;
+  const gW = W - marginL - marginR;
+  const gH = H - marginT - marginB;
+
+  // ── Background grid ──
+  ctx.strokeStyle = '#1a1a2e';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 6; i++) {
+    const y = marginT + (i / 6) * gH;
+    ctx.beginPath();
+    ctx.moveTo(marginL, y);
+    ctx.lineTo(W - marginR, y);
+    ctx.stroke();
+    // Label
+    ctx.fillStyle = '#45475a';
+    ctx.font = '11px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(((6 - i) / 6 * FEEDER_LIMIT * 1.2).toFixed(0) + ' kW', marginL - 8, y + 4);
+  }
+  // Time axis
+  for (let t = 0; t <= 24; t += 3) {
+    const x = marginL + (t / 24) * gW;
+    ctx.beginPath();
+    ctx.moveTo(x, marginT);
+    ctx.lineTo(x, marginT + gH);
+    ctx.stroke();
+    ctx.fillStyle = '#45475a';
+    ctx.textAlign = 'center';
+    ctx.font = '11px monospace';
+    ctx.fillText(String(t).padStart(2, '0') + ':00', x, marginT + gH + 18);
+  }
+
+  // ── Individual household lines (the impressive part) ──
+  const maxLoad = FEEDER_LIMIT * 1.2;
+  const visibleSteps = Math.min(step + 1, STEPS);
+
+  // Draw each household as a thin translucent line
+  for (let i = 0; i < N; i++) {
+    const house = houses[i];
+    ctx.beginPath();
+    ctx.lineWidth = 0.3;
+    ctx.globalAlpha = 0.15;
+
+    for (let s = 0; s < visibleSteps; s++) {
+      let load = house.loads[s];
+      if (drActive && s >= drStartStep) {
+        const drH = s * 0.25;
+        if (drH >= 14 && drH <= 19) {
+          load = Math.max(0.1, load - house.drReduction);
+        }
+      }
+      const x = marginL + (s / STEPS) * gW;
+      const y = marginT + gH - (load / maxLoad) * gH;
+      if (s === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+
+    const color = house.hasEV ? COLORS.ev : house.hasBatt ? COLORS.batt : house.hasHP ? COLORS.hp : house.hasAC ? COLORS.ac : COLORS.base;
+    ctx.strokeStyle = color;
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // ── Aggregate line ──
+  if (history.length > 1) {
+    // Fill under aggregate
+    ctx.beginPath();
+    ctx.moveTo(marginL, marginT + gH);
+    for (let s = 0; s < history.length; s++) {
+      const x = marginL + (s / STEPS) * gW;
+      const y = marginT + gH - (history[s] / maxLoad) * gH;
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(marginL + ((history.length - 1) / STEPS) * gW, marginT + gH);
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(0, marginT, 0, marginT + gH);
+    grad.addColorStop(0, 'rgba(249,226,175,0.15)');
+    grad.addColorStop(1, 'rgba(249,226,175,0)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Aggregate line
+    ctx.beginPath();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = COLORS.agg;
+    ctx.shadowColor = COLORS.agg;
+    ctx.shadowBlur = 8;
+    for (let s = 0; s < history.length; s++) {
+      const x = marginL + (s / STEPS) * gW;
+      const y = marginT + gH - (history[s] / maxLoad) * gH;
+      if (s === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // DR line (if active)
+    if (historyDR.length > 0 && drActive) {
+      ctx.beginPath();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = COLORS.dr;
+      ctx.setLineDash([6, 4]);
+      for (let s = 0; s < historyDR.length; s++) {
+        const x = marginL + (s / STEPS) * gW;
+        const y = marginT + gH - (historyDR[s] / maxLoad) * gH;
+        if (s === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  // ── Feeder limit ──
+  const limitY = marginT + gH - (FEEDER_LIMIT / maxLoad) * gH;
+  ctx.beginPath();
+  ctx.strokeStyle = COLORS.limit;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([8, 6]);
+  ctx.moveTo(marginL, limitY);
+  ctx.lineTo(W - marginR, limitY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = COLORS.limit;
+  ctx.font = 'bold 12px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('LIMIT 5,000 kW', W - marginR + 6, limitY + 4);
+
+  // ── Current time marker ──
+  if (visibleSteps > 0) {
+    const cx = marginL + ((visibleSteps - 1) / STEPS) * gW;
+    // Vertical line
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1;
+    ctx.moveTo(cx, marginT);
+    ctx.lineTo(cx, marginT + gH);
+    ctx.stroke();
+
+    // Dot at current aggregate
+    if (history.length > 0) {
+      const cy = marginT + gH - (history[history.length - 1] / maxLoad) * gH;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+      ctx.fillStyle = COLORS.agg;
+      ctx.shadowColor = COLORS.agg;
+      ctx.shadowBlur = 15;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Current load label
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 14px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(history[history.length - 1].toFixed(0) + ' kW', cx + 12, cy - 8);
+    }
+  }
+
+  // ── Sparkle particles for DR ──
+  if (drActive) {
+    const cx = marginL + (step / STEPS) * gW;
+    for (let i = 0; i < 3; i++) {
+      spawnParticle(
+        cx + randn(0, 20), marginT + gH - (drTotalReduction / maxLoad) * gH + randn(0, 50),
+        COLORS.dr, randn(0, 1), randn(-2, 1), 30 + rand() * 30
+      );
+    }
+  }
+
+  // Draw particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life--;
+    if (p.life <= 0) { particles.splice(i, 1); continue; }
+    ctx.globalAlpha = p.life / p.maxLife * 0.7;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // ── DR activation flash ──
+  if (drActive && step === drStartStep) {
+    ctx.fillStyle = 'rgba(243,139,168,0.1)';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // ── Mini house grid (bottom right, showing individual households) ──
+  if (step > 0) {
+    const gridX = W - 340;
+    const gridY = marginT + 10;
+    const cellSize = 3;
+    const cols = 40;
+    ctx.fillStyle = 'rgba(26,26,46,0.7)';
+    ctx.fillRect(gridX - 6, gridY - 18, cols * (cellSize + 1) + 12, (N / cols) * (cellSize + 1) + 28);
+    ctx.fillStyle = '#6c7086';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('1,000 Households (load intensity)', gridX, gridY - 6);
+
+    for (let i = 0; i < N; i++) {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const house = houses[i];
+      let load = house.loads[step];
+      if (drActive) load = Math.max(0.1, load - house.drReduction);
+
+      // Color by intensity
+      const intensity = Math.min(1, load / 10);
+      const color = house.hasEV ? COLORS.ev : house.hasBatt ? COLORS.batt : house.hasHP ? COLORS.hp : house.hasAC ? COLORS.ac : COLORS.base;
+
+      ctx.globalAlpha = 0.2 + intensity * 0.8;
+      ctx.fillStyle = color;
+      ctx.fillRect(gridX + col * (cellSize + 1), gridY + row * (cellSize + 1), cellSize, cellSize);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ── Update HUD ──
+  if (history.length > 0) {
+    const load = history[history.length - 1];
+    const pct = (load / FEEDER_LIMIT * 100);
+    document.getElementById('s-load').textContent = load.toFixed(0) + ' kW';
+    document.getElementById('s-load').style.color = pct > 85 ? COLORS.limit : pct > 70 ? COLORS.agg : COLORS.ac;
+    document.getElementById('s-pct').textContent = pct.toFixed(1) + '%';
+    document.getElementById('s-pct').style.color = pct > 85 ? COLORS.limit : pct > 70 ? COLORS.agg : COLORS.dr;
+    document.getElementById('s-ctrl').textContent = (drActive ? drTotalReduction.toFixed(0) : '0') + ' kW';
+    document.getElementById('s-dr').textContent = drActive ? '🟢 ACTIVE' : (h >= 19 && drStartStep > 0) ? '✅ DONE' : '—';
+    document.getElementById('s-dr').style.color = drActive ? COLORS.dr : '#6c7086';
+  }
+
+  const hours = Math.floor(h);
+  const mins = Math.floor((h - hours) * 60);
+  document.getElementById('t-clock').textContent = String(hours).padStart(2, '0') + ':' + String(mins).padStart(2, '0');
+}
+
+function tick(timestamp) {
+  if (!running) return;
+  if (!lastTime) lastTime = timestamp;
+  const dt = timestamp - lastTime;
+  lastTime = timestamp;
+  accumulator += dt;
+
+  while (accumulator >= SPEED && step < STEPS) {
+    accumulator -= SPEED;
+
+    // Check events
+    for (const [eStep, eText, isDR] of events) {
+      if (step === eStep) {
+        currentEvent = eText;
+        document.getElementById('t-event').textContent = eText;
+        if (isDR) {
+          drActive = true;
+          drStartStep = step;
+        }
+      }
+    }
+
+    // Apply DR
+    if (drActive) {
+      drTotalReduction = applyDR(step);
+    }
+    const h = step * 0.25;
+    if (h > 19 && drActive) {
+      drActive = false;
+      for (const house of houses) house.drReduction = 0;
+      drTotalReduction = 0;
+    }
+
+    // Compute aggregate
+    const agg = getAggregate(step);
+    history.push(agg.total);
+    if (drActive) {
+      // Also store what it would have been without DR
+      let noDR = 0;
+      for (const h of houses) noDR += h.loads[step];
+      historyDR.push(noDR);
+    } else if (historyDR.length > 0) {
+      historyDR.push(historyDR[historyDR.length - 1]);
+    }
+
+    step++;
+  }
+
+  if (step >= STEPS) {
+    // Loop with pause
+    document.getElementById('t-event').textContent = '🔄 24時間完了 — 3秒後にリスタート';
+    setTimeout(() => {
+      step = 0;
+      history.length = 0;
+      historyDR.length = 0;
+      drActive = false;
+      drStartStep = -1;
+      drTotalReduction = 0;
+      for (const h of houses) h.drReduction = 0;
+      particles.length = 0;
+      lastTime = 0;
+      accumulator = 0;
+      requestAnimationFrame(tick);
+    }, 3000);
+    draw();
+    return;
+  }
+
+  draw();
+  requestAnimationFrame(tick);
+}
+
+function start() {
+  document.getElementById('controls').classList.add('hidden');
+  document.getElementById('hud').classList.remove('hidden');
+  document.getElementById('stats').classList.remove('hidden');
+  document.getElementById('timeline').classList.remove('hidden');
+  document.getElementById('legend').classList.remove('hidden');
+  running = true;
+  requestAnimationFrame(tick);
+}
+</script>
+</body>
+</html>
