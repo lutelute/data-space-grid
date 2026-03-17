@@ -1,0 +1,46 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build site
+        run: |
+          mkdir -p _site
+          # Copy visualization pages
+          cp docs/demand-viz.html _site/index.html
+          cp docs/presentation.html _site/presentation.html
+          cp docs/GUIDE_JA.md _site/guide.md
+          # Copy demo output images for presentation
+          mkdir -p _site/examples/output
+          cp examples/output/*.png _site/examples/output/ 2>/dev/null || true
+          # Copy concept GIFs
+          mkdir -p _site/docs/demos
+          cp docs/demos/concept-*.gif _site/docs/demos/ 2>/dev/null || true
+          cp docs/demos/slideshow-*.gif _site/docs/demos/ 2>/dev/null || true
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - uses: actions/deploy-pages@v4
+        id: deployment
